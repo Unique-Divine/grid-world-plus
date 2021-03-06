@@ -5,6 +5,7 @@ import numpy as np
 
 graph: np.ndarray = np.empty(1)
 
+
 # TODO: Embedded state vector, h = φ(s) 
 
 # TODO: graph ← Sort nodes in graph by sequential step ID, t
