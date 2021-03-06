@@ -18,17 +18,22 @@ def get_successor_sa_pair(graph):
     # return s_p, a_p
 
 def update_graph_memory():
-
-    # Use  Q_G(φ(s), a) ← r + γ argmax_{a'}( Q_G (φ(s'), a')) )
-    pass
+    """Use  Q_G(φ(s), a) ← r + γ max_{a'}( Q_G (φ(s'), a')) )
+    r: reward
+    γ: discount 
+    φ: state vector. Each state is some s in S. 
+    """
+    #     pass
     # return Q_G
 
-for nodes in graph.size:
+for m in graph.size:
     # TODO: get state-action tuple
      
     # TODO: get state embedding s' and action a' using graph
   
     # TODO: Update graph-augmented memory
 
+    pass 
 
-# TODO:
+
+# TODO: 
