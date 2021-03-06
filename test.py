@@ -3,7 +3,7 @@ import gym
 env = gym.make('FrozenLake-v0')
 env.seed(0)
 
-#wrapper for accounting rewards
+# wrapper for accounting rewards
 episode_reward = 0
 reward_list = []
 fixed_window = 100
@@ -16,9 +16,15 @@ def reset_decorate(func):
         global moving_avg
         global episode_reward
         global fixed_window
+        # when I reset environment at episode end (e.g. when d==True)
+        # I want to keep track of the reward from the last episode
         reward_list.append(episode_reward)
+        # when number of rewards edceeds fixed window, take the average of your rewards
+        # i.e. every 100 episodes, moving average becomes the average of last fixed_window rewards
+        # not necessary
         if len(reward_list) >= fixed_window:
             moving_avg = np.mean(reward_list[len(reward_list) - fixed_window:len(reward_list) - 1])
+        # reset episode reward
         episode_reward = 0
         return func()
     return func_wrapper
@@ -40,41 +46,6 @@ def init():
     rList=[]
     movingAverage=0
     return
-
-
-# episode_reward = 0
-# reward_list = []
-# fixed_window = 100
-# moving_avg = 0
-
-
-# def reset_decorate(func):
-#     def func_wrapper():
-#         global reward_list
-#         global moving_avg
-#         global episode_reward
-#         global fixed_window
-#         reward_list.append(episode_reward)
-#         if len(reward_list) >= fixed_window:
-#             moving_avg = np.mean(reward_list[len(reward_list) - fixed_window:len(reward_list) - 1])
-#         episode_reward = 0
-#         return func()
-#     return func_wrapper
-
-
-# env.reset = reset_decorate(env.reset)
-
-
-# def step_decorate(func):
-#     def func_wrapper(action):
-#         global reward_episode
-#         s1,r,d,other = func(action)
-#         reward_episode += r
-#         return(s1, r, d, other)
-#     return func_wrapper
-
-
-# env.step = step_decorate(env.step)
 
 
 def init():
@@ -113,6 +84,9 @@ def decision(environment, Q_of_state, ep_num, decision_type):
 Q = np.zeros([env.observation_space.n, env.action_space.n])
 n = np.ones([env.observation_space.n, env.action_space.n])  # record  number of visits to each state
 
+
+# Start of training
+# we are training the Q-values
 for episode in range(NUM_EPISODES):
     s = env.reset()  # reset the environment at the beginning of an episode
     d = False  # d := env returns done i.e. terminal state reached
@@ -131,7 +105,13 @@ for episode in range(NUM_EPISODES):
         a = decision(env, Q[s, :], episode, "epsilon greedy")
 
         # get new state, reward, done
+        # s1 := next state (integer)
+        # r := reward
+        # d := done
+        # info := stuff about the environment
         s1, r, d, info = env.step(a)
+        print(info)
+        break
 
         # lets penalize the holes
         if d and s1 != 15:
@@ -148,6 +128,7 @@ for episode in range(NUM_EPISODES):
         else:
             s = s1
 
+# policy evaluation
 init()
 num_episodes = 1000  # number of episodes for evaluation
 episode_max_length = 100
@@ -158,7 +139,7 @@ for i in range(num_episodes):
     s = env.reset()
     d = False
     for t in range(episode_max_length):
-        a = np.argmax(Q[s,:])
+        a = np.argmax(Q[s, :])
         s, r, d, _ = env.step(a)
         if d:
             break
