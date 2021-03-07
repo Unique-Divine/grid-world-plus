@@ -1,5 +1,4 @@
 from tools import discount_rate, lr, decision
-from collections import Tuple
 import numpy as np
 import gym
 
@@ -29,8 +28,8 @@ class FrozenLakeQ():
         episode_trajectories = []
 
         for episode in range(num_episodes):
-            state = self.env.reset()  # reset the environment at the beginning of an episode
-            done: bool = False  # done := env returns done i.e. terminal state reached
+            state = self.env.reset() # Reset environment 
+            done: bool = False  # 'done': True if in terminal state,
 
             alpha = lr(episode, num_episodes)
             gamma = discount_rate(episode, num_episodes)
