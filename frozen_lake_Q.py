@@ -12,7 +12,7 @@ class FrozenLakeQ():
         self.env = env
         self.env.seed(env_seed)
 
-        self.reward_episode = 0
+        self.episode_reward = 0
         self.reward_list = []
         # self.moving_average = 0
         self.num_episodes = num_episodes
@@ -31,7 +31,6 @@ class FrozenLakeQ():
 
         for episode in range(num_episodes):
             state = self.env.reset() # Reset environment 
-            done: bool = False  # 'done': True if in terminal state,
 
             alpha = lr(episode, num_episodes)
             gamma = discount_rate(episode, num_episodes)
@@ -44,6 +43,7 @@ class FrozenLakeQ():
 
                 perform_step: tuple = self.env.step(action)
                 next_state: int
+                done: bool  # 'done': True if in terminal state
                 next_state, reward, done, info = perform_step                
                 
                 # Save the rewards and trajectory for the scene
@@ -55,24 +55,28 @@ class FrozenLakeQ():
                     reward = - 1
 
                 # Update Q-fn
-                delta = reward + gamma * np.max(self.Q[next_state, :])
+                delta = reward + gamma*np.max(self.Q[next_state, :])
                 delta = delta - self.Q[state, action]
-                Q_update = self.Q[state, action] + alpha * delta
+                Q_update = self.Q[state, action] + alpha*delta
                 self.Q[state, action] = Q_update
 
                 if done:
-                    break # Terminal state reached.
+                    break  # Terminal state reached.
                 else:
-                    state = next_state # Advance to next state
+                    state = next_state  # Advance to next state
+
             
             episode_rewards.append(scene_rewards)
             episode_trajectories.append(trajectory)
 
-    def test(self, 
+    def test(self,
         episode_count: int = 1000,
         episode_max_length: int = 100) -> list:
 
-        scores = []
+        self.episode_reward = 0
+        self.reward_list = []
+        self.moving_average = 0
+
         self.env.reset()
         for i in range(episode_count):
             state = self.env.reset()
@@ -82,15 +86,17 @@ class FrozenLakeQ():
                 state, episode_reward, done, _ = self.env.step(action)
                 if done:
                     break
-            scores.append(episode_reward)
+
+            self.reward_list.append(episode_reward)
             print("evaluation reward", episode_reward)
 
-        return scores
+        return self.reward_list
 # %%
 def toy():
     fl = FrozenLakeQ()
     fl.train()
-    fl.test()
+    test_rewards = fl.test()
+    a=5
 
 toy()
 # %%
