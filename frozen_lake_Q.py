@@ -1,7 +1,9 @@
+# %%
 from tools import discount_rate, lr, decision
 import numpy as np
 import gym
 
+# %%
 class FrozenLakeQ():
     def __init__(self, env = gym.make('FrozenLake-v0'), 
         env_seed: int = 0, num_episodes: int = 1000, 
@@ -37,7 +39,8 @@ class FrozenLakeQ():
             trajectory = []
 
             for scene in range(max_num_scenes):
-                action = decision(self.env, self.Q[state, :], episode, "epsilon greedy")
+                action = decision(self.env, self.Q[state, :], episode, 
+                                  num_episodes, "epsilon greedy")
 
                 perform_step: tuple = self.env.step(action)
                 next_state: int
@@ -75,7 +78,7 @@ class FrozenLakeQ():
             state = self.env.reset()
             done: bool = False
             for t in range(episode_max_length):
-                action = np.argmax(self.Q[s, :])
+                action = np.argmax(self.Q[state, :])
                 state, episode_reward, done, _ = self.env.step(action)
                 if done:
                     break
@@ -83,3 +86,11 @@ class FrozenLakeQ():
             print("evaluation reward", episode_reward)
 
         return scores
+# %%
+def toy():
+    fl = FrozenLakeQ()
+    fl.train()
+    fl.test()
+
+toy()
+# %%
