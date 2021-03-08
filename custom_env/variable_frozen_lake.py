@@ -7,14 +7,20 @@ import gym.utils
 import random
 
 class Environment:
-
-    def __init__(self, board_dim = (50, 50), frozen_pct = 0.8, n_goals = 1):
-        # Set board dimensions. 
-        if len(board_dim) != 2:
-            raise ValueError("'board_dim' must be a list-like of lenght 2.")
-        self.board_dim = board_dim
-        self.grid = np.zeros(board_dim, dtype='int').astype(str)
-        assert self.grid.shape == self.board_dim
+    """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
+    a varying starting position for the agent.
+    Args:
+        grid_shape (list-like): 
+        frozen_pct (float): 
+        n_goals (int): Defaults to 1. 
+    """
+    def __init__(self, grid_shape = (50, 50), frozen_pct = 0.8, n_goals = 1):
+        # Set board dimensions and initalize to an "empty" grid. 
+        if len(grid_shape) != 2:
+            raise ValueError("'grid_shape' must be a list-like of lenght 2.")
+        self.grid_shape = grid_shape
+        self.grid = np.zeros(grid_shape, dtype='int').astype(str)
+        assert self.grid.shape == self.grid_shape
 
         if (frozen_pct < 0) or (frozen_pct >= 1):
             raise ValueError("'frozen_pct' must be between 0 and 1.") 
@@ -26,15 +32,15 @@ class Environment:
         self.env_matrix = np.empty(5) # TODO                        
         
     def set_agent_goal(self):
-        grid_len, grid_height = self.board_dim
+        grid_len, grid_height = self.grid_shape
         def randomly_select_positions():
             positions = []
             # Randomly select starting point for agent.
-            agent_x, agent_y = [random.randrange(l) for l in self.board_dim]
+            agent_x, agent_y = [random.randrange(l) for l in self.grid_shape]
             positions.append([agent_x, agent_y])
             # Randomly select starting point for each goal.
             for goal_idx in np.arange(self.n_goals):
-                goal_x, goal_y = [random.randrange(l) for l in self.board_dim] 
+                goal_x, goal_y = [random.randrange(l) for l in self.grid_shape] 
                 positions.append([goal_x, goal_y])
             assert len(positions) >= 2
             return positions 
@@ -89,6 +95,7 @@ def test_set_agent_goal():
         assert env_object in list(nonfrozen.values())
     
 test_set_agent_goal()
+print("Test passed.")
 #%%
 from gym.envs.toy_text import frozen_lake
 
