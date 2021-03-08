@@ -8,7 +8,6 @@ import random
 
 class Environment:
 
-
     def __init__(self, board_dim = (50, 50), frozen_pct = 0.8, n_goals = 1):
         # Set board dimensions. 
         if len(board_dim) != 2:
@@ -31,13 +30,11 @@ class Environment:
         def randomly_select_positions():
             positions = []
             # Randomly select starting point for agent.
-            agent_x = random.randrange(grid_len)
-            agent_y = random.randrange(grid_height)
+            agent_x, agent_y = [random.randrange(l) for l in self.board_dim]
             positions.append([agent_x, agent_y])
             # Randomly select starting point for each goal.
             for goal_idx in np.arange(self.n_goals):
-                goal_x = random.randrange(grid_len) 
-                goal_y = random.randrange(grid_height)
+                goal_x, goal_y = [random.randrange(l) for l in self.board_dim] 
                 positions.append([goal_x, goal_y])
             assert len(positions) >= 2
             return positions 
