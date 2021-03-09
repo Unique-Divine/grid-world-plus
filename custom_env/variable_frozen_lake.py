@@ -20,12 +20,13 @@ class Environment:
     Attributes:
         interactables (dict): key-value pairs for the various items that can 
             take up space on the frozen lake. This would be the agent, goal, 
-            holes, etc. 
-            The 'blocked' key refers to spaces that can't be traversed.
+            holes, etc. The 'blocked' key refers to spaces that can't 
+            be traversed.
+        grid (np.ndarray): A matrix with the encodings for each interactable. 
     """
-    def __init__(self, grid_shape = (10, 10), difficulty = 0.2, n_goals = 2):
-        self.interactables = {'frozen': '0', 'agent': 'a', 'goal': 'g', 'hole': 'h', 
-                        'blocked': 'b'} 
+    def __init__(self, grid_shape = (10, 10), difficulty = 0.2, n_goals = 1):
+        self.interactables = {'frozen': '0', 'agent': 'a', 'goal': 'g', 
+            'hole': 'h', 'blocked': 'b'} 
 
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
@@ -80,13 +81,18 @@ class Environment:
             x, y = positions_ag[goal_idx + 1]
             self.grid[x, y] = self.interactables['goal'] 
 
-    def update(self, action):
+    def (self, action):
+        act
         pass
 
-def generate_random_grid( frozen_pct, num_goals):
-    """Generates a random grid that has a path from start to goal.
-    """
-    pass
+    def generate_valid_path(self):
+        """Generates a random grid that has a path from start to goal.
+        """
+        # TODO Use maze-generation algo to verify that a valid path exists.
+        
+        self.grid
+
+        pass
 
 
 def test_set_agent_goal():
