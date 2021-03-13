@@ -3,7 +3,7 @@ from tools import discount_rate, lr, decision
 import numpy as np
 import gym
 
-# %%
+# %%h
 class FrozenLakeQ():
     def __init__(self, env = gym.make('FrozenLake-v0'), 
         env_seed: int = 0, num_episodes: int = 1000, 
@@ -96,7 +96,7 @@ def toy():
     fl = FrozenLakeQ()
     fl.train()
     test_rewards = fl.test()
-    a=5
+
 
 toy()
 # %%

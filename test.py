@@ -110,8 +110,7 @@ for episode in range(NUM_EPISODES):
         # d := done
         # info := stuff about the environment
         s1, r, d, info = env.step(a)
-        print(info)
-        break
+        # print(info)
 
         # lets penalize the holes
         if d and s1 != 15:
@@ -133,6 +132,8 @@ init()
 num_episodes = 1000  # number of episodes for evaluation
 episode_max_length = 100
 movingAverageArray = []
+
+shaka = []
 score = 0
 env.reset()
 for i in range(num_episodes):
@@ -147,7 +148,10 @@ for i in range(num_episodes):
     print("evaluation reward moving average", moving_avg)
     print("evaluation episode", i)
     movingAverageArray.append(moving_avg)
+    shaka.append(r)
 
     # score is x if there is a window of 100 consecutive episodes where moving average was at least x
     if i > 100:
         score = max(score, min(movingAverageArray[i-100:i-1]))
+
+a=5
