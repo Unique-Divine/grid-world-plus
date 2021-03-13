@@ -24,9 +24,9 @@ class Environment:
             be traversed.
         grid (np.ndarray): A matrix with the encodings for each interactable. 
     """
-    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 1):
+    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
         self.interactables = {'frozen': '_', 'agent': 'A', 'goal': 'G', 
-            'hole': 'O', 'blocked': 'b'} 
+            'hole': 'o', 'blocked': 'b'} 
 
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
@@ -42,7 +42,10 @@ class Environment:
         self.n_goals = n_goals
         
         self._position_space: List[list] = self.position_space
-        self.open_positions: List[list] = self.position_space
+        self.open_positions: List[list] = self._position_space
+
+        self.set_agent_goal()
+        self.set_holes
 
     @property
     def position_space(self) -> list:
@@ -96,7 +99,37 @@ class Environment:
             self.grid[x, y] = self.interactables['hole']
 
     def valid_path_exists(self) -> bool:
-        #
+        # Calculate nearest goal to the agent 
+        unexplored_spots: List[list] = self.open_positions
+        hole_spots = list(np.argwhere(self.grid == self.interactables['hole']))
+        agent_spot: np.ndarray = list(np.argwhere(
+            self.grid == self.interactables['agent']))
+        goal_spots: list = list(np.argwhere(
+            self.grid == self.interactables['goal']))
+        valid_spots = agent_spot + goal_spots
+        valid_spots = [list(a) for a in valid_spots]
+
+        def explore_spot(spot, valid_spots) -> list:
+            nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
+            cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
+            shifts = nsew_shifts + cross_shifts 
+
+            for shift in shifts:
+                dx, dy = shift
+                shifted_spot = [spot[0] + dx, spot[1] + dy]
+
+                if shifted_spot in unexplored_spots:
+                    pass
+                elif shifted_spot in hole_spots:
+                    continue # skip if known hole
+                elif shifted_spot in valid_spots:
+                    continue # skip if known valid
+                else:
+                    valid_spots.append(shifted_spot) 
+
+                raise NotImplementedError("TODO")
+            return valid_spots
+            
 
         valid_path_exists = False
         return valid_path_exists
@@ -108,6 +141,8 @@ class Environment:
 
         pass
 
+env = Environment()
+env.valid_path_exists()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
