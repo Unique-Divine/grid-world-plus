@@ -1,0 +1,14 @@
+# Jupyter stuff and pycache
+**checkpoint.ipyn**
+**checkpoint**
+**checkpoint.ipy**
+
+# vs code files
+.vscode/settings.json
+**settings.json**
+# **bioinformatics.code-workspace
+**pycache**
+**.pyc 
+
+# PyCharm files
+.idea** 
