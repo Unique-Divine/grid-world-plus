@@ -11,4 +11,4 @@
 **.pyc 
 
 # PyCharm files
-.idea** 
+# .idea** 
