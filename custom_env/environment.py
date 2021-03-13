@@ -25,8 +25,8 @@ class Environment:
         grid (np.ndarray): A matrix with the encodings for each interactable. 
     """
     def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 1):
-        self.interactables = {'frozen': '_', 'agent': 'A', 'goal': 'g', 
-            'hole': 'h', 'blocked': 'b'} 
+        self.interactables = {'frozen': '_', 'agent': 'A', 'goal': 'G', 
+            'hole': 'O', 'blocked': 'b'} 
 
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
@@ -88,7 +88,7 @@ class Environment:
             self.grid[x, y] = self.interactables['goal'] 
 
     def set_holes(self):
-        n_holes: int = len(self.open_positions) * self.hole_pct
+        n_holes: int = int(len(self.open_positions) * self.hole_pct)
         for hole in range(n_holes):
             hole_position = self.randomly_select_open_position()
             self.open_positions.remove(hole_position)
@@ -108,13 +108,11 @@ class Environment:
 
         pass
 
-#%%
+
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
 # https://docs.python.org/3/library/random.html
 
-
-from gym.envs.toy_text import frozen_lake
-
-print(frozen_lake.generate_random_map())
-# %%
+def frozen_lake_original_map():
+    from gym.envs.toy_text import frozen_lake
+    print(frozen_lake.generate_random_map())

@@ -1,3 +1,4 @@
+#%%
 import environment
 import numpy as np
 
@@ -28,18 +29,32 @@ def test_set_agent_goal():
         env_object = env.grid[x, y]
         assert env_object in list(nonfrozen.values())
     
+    # TODO: Make sure n_goals is actually 60.
+
     print(env.grid)
     # print(env.open_positions)
     
-test_set_agent_goal()
-print("Test passed.")
-
 
 def test_set_holes():
-    env = environment.Environment(grid_shape=(50, 50), n_goals=60)
+    env = environment.Environment(grid_shape=(50, 50), n_goals=20)
     env.set_agent_goal()
+    env.set_holes()
 
-    is_hole: np.ndarry = (env.grid == env.interactables['hole'])
-    n_holes: int = is_hole.sum()
+    n_agents: int = int((env.grid == env.interactables['agent']).sum())
+    n_goals: int = int((env.grid == env.interactables['goal']).sum())
+    n_holes: int = int((env.grid == env.interactables['hole']).sum())
+    n_frozen: int = int((env.grid == env.interactables['frozen']).sum())
     n_positions = np.product(env.grid.shape)
-    assert n_holes == int(n_positions * env.hole_pct)
+    assert n_positions == np.sum([n_agents, n_goals, n_holes, n_frozen])
+
+    n_previously_frozen = n_positions - n_agents - n_goals 
+    expected_n_holes = int(n_previously_frozen * env.hole_pct)
+    assert n_holes == expected_n_holes
+    
+    print(env.grid[:10,:10])
+
+test_set_agent_goal()
+print("Test passed.")
+test_set_holes()
+print("Test passed.")
+
