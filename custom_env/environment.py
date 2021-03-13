@@ -45,7 +45,7 @@ class Environment:
         self.open_positions: List[list] = self._position_space
 
         self.set_agent_goal()
-        self.set_holes
+        self.set_holes()
 
     @property
     def position_space(self) -> list:
