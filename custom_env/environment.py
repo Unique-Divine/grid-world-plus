@@ -13,7 +13,7 @@ class Environment:
     a varying starting position for the agent.
     Args:
         grid_shape (list-like): 
-        difficulty (float): The probability of any open spot, i.e. one that 
+        hole_pct (float): The probability of any open spot, i.e. one that 
             isn't an agent, goal, or blocked, to be hole.  
         n_goals (int): Defaults to 1.
     
@@ -24,33 +24,39 @@ class Environment:
             be traversed.
         grid (np.ndarray): A matrix with the encodings for each interactable. 
     """
-    def __init__(self, grid_shape = (10, 10), difficulty = 0.2, n_goals = 1):
-        self.interactables = {'frozen': '0', 'agent': 'a', 'goal': 'g', 
+    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 1):
+        self.interactables = {'frozen': '_', 'agent': 'A', 'goal': 'g', 
             'hole': 'h', 'blocked': 'b'} 
 
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
             raise ValueError("'grid_shape' must be a list-like of lenght 2.")
-        self.grid = np.zeros(grid_shape, dtype='int').astype(str)
+        self.grid = np.full(grid_shape, self.interactables['frozen'])
         assert self.grid.shape == grid_shape
 
         # TODO: Implement blocked pathway
-        if (difficulty < 0) or (difficulty >= 1):
-            raise ValueError("'difficulty' must be between 0 and 1.") 
-        self.difficulty = difficulty
+        if (hole_pct < 0) or (hole_pct >= 1):
+            raise ValueError("'hole_pct' must be between 0 and 1.") 
+        self.hole_pct = hole_pct
        
         self.n_goals = n_goals
         
-        self.position_space: List[list] = self.get_position_space()
+        self._position_space: List[list] = self.position_space
         self.open_positions: List[list] = self.position_space
 
-    def get_position_space(self) -> set:
+    @property
+    def position_space(self) -> list:
         row_dim, col_dim = self.grid.shape
         position_space: List[list] = []
         for i in range(row_dim):
             for j in range(col_dim):
                 position_space.append([i, j])
         return position_space
+    
+    @position_space.deleter
+    def position_space(self):
+        raise AttributeError("`position_space` attribute of class "
+            + "`Environment` is read-only.")
 
     def randomly_select_open_position(self) -> List[int]:
         position: List[int] = random.choice(self.open_positions)
@@ -81,53 +87,33 @@ class Environment:
             x, y = positions_ag[goal_idx + 1]
             self.grid[x, y] = self.interactables['goal'] 
 
-    def (self, action):
-        act
-        pass
+    def set_holes(self):
+        n_holes: int = len(self.open_positions) * self.hole_pct
+        for hole in range(n_holes):
+            hole_position = self.randomly_select_open_position()
+            self.open_positions.remove(hole_position)
+            x, y = hole_position
+            self.grid[x, y] = self.interactables['hole']
+
+    def valid_path_exists(self) -> bool:
+        #
+
+        valid_path_exists = False
+        return valid_path_exists
 
     def generate_valid_path(self):
         """Generates a random grid that has a path from start to goal.
         """
-        # TODO Use maze-generation algo to verify that a valid path exists.
-        
-        self.grid
+        # TODO Place holes in the open spots based on hole_pct.
 
         pass
 
-
-def test_set_agent_goal():
-    env = Environment(grid_shape=(3, 3), n_goals=6)
-    env.set_agent_goal()
-
-    # Find interactables such as the agent and goal
-    nonfrozen_spots: np.ndarray = np.argwhere(
-        env.grid != env.interactables['frozen'])
-    assert nonfrozen_spots.ndim == 2
-    assert nonfrozen_spots.size >= 4
-    assert nonfrozen_spots.size % 2 == 0
-    nonfrozen_spots = list(nonfrozen_spots)
-
-    # Subset the dictionary of possible environment interactables
-    env_interactables: list  = list(env.interactables.keys())
-    assert 'frozen' in env_interactables
-    env_interactables.remove('frozen')    
-    nonfrozen: list = env_interactables
-    nonfrozen: dict = {
-        k: v for k, v in env.interactables.items() if k in nonfrozen}
-
-    # Verify that each nonfrozen spot is actually not frozen.
-    for spot in nonfrozen_spots:
-        assert spot.size == 2
-        x, y = spot
-        env_object = env.grid[x, y]
-        assert env_object in list(nonfrozen.values())
-    
-    print(env.grid)
-    print(env.open_positions)
-    
-test_set_agent_goal()
-print("Test passed.")
 #%%
+# Useful implementation links: 
+# https://en.wikipedia.org/wiki/Depth-first_search
+# https://docs.python.org/3/library/random.html
+
+
 from gym.envs.toy_text import frozen_lake
 
 print(frozen_lake.generate_random_map())
