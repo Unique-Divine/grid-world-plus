@@ -1,0 +1,128 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{fancyhdr}
+\usepackage{amssymb, amsmath, amsthm, enumitem, physics}
+\usepackage[margin=0.75in]{geometry} % set page margins automatically
+\usepackage{tcolorbox, bm}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{pdfpages}
+\usepackage{qtree}
+
+\newtcolorbox{mybox}[3][]
+{
+  colframe = cyan,
+  colback  = white,
+  coltitle = #2!20!black,
+  title    = {#3},
+  #1,
+}
+
+\pagestyle{fancy}
+
+\newcommand{\pr}{\mathbb{P}}
+\newcommand{\suml}{\sum\limits}
+\newcommand{\intl}{\int\limits}
+\renewcommand{\d}{\text{d}}
+\begin{document}
+
+\lhead{}
+\rhead{}
+
+
+\paragraph*{Terminology: }
+\begin{itemize}
+  \item Scene: a specific time step $t$ and its corresponding state $s_t$ (within an episode)
+  \item Episode: Full sequence of scenes
+  \item Memory: a 4-tuple ($s_t, a_t, r_t, s_{t+1}$)
+  \item Trajectory: synonymous with episode. I.e., a trajectory is a sequence of memories that reaches a terminal state or some $t_{max}$.  
+\end{itemize}
+
+\hrule
+
+\paragraph{System overview:} 
+
+Actor-Critic  
+
+\begin{itemize}
+  \item Critic $\mathcal{C}$ is learning a value $V_\theta (s)$ that critiques the actor. The critic $\mathcal{C}$ uses attention to train on trajectories from prior experiences. This would happen through self-supervised ``leave one out'' predictions in simialar fashion to the BERT / GPT-2 text generation tasks.  
+  \item TD-error is computed from $V_\theta (s)$:
+    \begin{gather*}
+      E_{TD} = r_t + \gamma V_\theta(s_{t+1}) - V_\theta(s_t) \\
+      R_t = \suml_{k=0}^\infty \gamma^k r_{t+k}
+    \end{gather*}
+  
+  \item Actor $\mathcal{A}$ (an MLP or something) acts based on sampled actions from a policy. The state $s_t$ and weights $\bm{\theta}$ are taken in by the actor $\mathcal{A}$ to output a probability distribution of actions $\pi_\theta (s_t)$. Sample from that probability distribution to select an action $a_t \sim \pi_\theta(s_t)$. 
+\end{itemize}
+
+
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\caption{Minibatch SGD training of GAN. The number of steps to apply the discriminator, $k$, is a hyperparameter. $k=1$ is the least expensive option.}
+
+
+\For{\normalfont number of training episodes}{
+  \While{\normalfont\text{not in terminal state }$(t<T)$ }{
+		In state $s_t$, select action $a_t$ from the policy $\pi$: $a_t \sim \pi_{\theta}(s_t)$ \\
+    Perform action $a_t$ to retrieve $s_{t+1}, r_t$. \\
+    Memorize the memory $M_t := (s_t, a_t, s_{t+1}, r_t)$ for training the critic. \\
+    \eIf % If
+      {\normalfont\text{terminal state}}%, then 
+      {Compute discounted rewards vector $\bm{R}$ with discount factor $\gamma$:  
+        $ \bm{R} = \suml_{t=0}^{T} 
+        \gamma^t r_t \hat{e_t} $ \\  
+      Save the trajectory sequence $\bm{\tau} = [M_0, \cdots, M_{T}]$ \\
+      break}  
+    % else 
+      (){$s_t \leftarrow s_{t+1}$ \\
+      $t \leftarrow t+1 $}
+    }
+
+	\# Train critic in order to update the policy. 
+  Compute values vector $\bm{V} = [V_\theta(s_0), V_\theta(s_1), \ldots, V_\theta(s_{t_f})]$ 
+  Value  = BERT($\bm{\tau}$)
+  Policy
+}
+
+The gradient-based updates can use any standard gradient-based learning rule.
+\end{algorithm}
+
+
+
+\paragraph{Attention:}
+
+Self-supervised ``leave one out" training on trajectory inputs. This is similar to how BERT / GPT-2 do self-supervised training on sentences to build context for words. We would do this with trajectories to build context on memories, where the attention mechanism predicts 
+
+- Hidden layer embeddings are able to learn context-dependent information.
+
+Training the attention part: 
+
+Input time ($t$): 0 1 2 3 \_ 5 6 7 8       
+
+For predicting t=4, we could input $s_4$, $a_4$, and predicts $s_5$ 
+
+What's missing at $t=4$: $s_4, a_4$
+
+Predicts $mathcal{R}$  -> expected reward $\gamma r_{4-8}$
+
+
+\paragraph*{RL agent (live)}:
+
+Then, when we give at seq like below:
+Input time($t$): 0 1 2 3 4 \_
+
+Right, we're in $s_4$ and want to pick $a_4$ and it would be helpful to know $r_4$ and $s_5$. 
+
+$Q_{att}(s_t, a)$: attention-value of state-action pair
+
+$pi(s_t)$ = $max_a [Q(s_4, a) + Q_{att}(s_4, a)]$ 
+
+----
+
+Generate N trajectories, where N is a hyperparameter. 
+
+Attention trains on those trajectories in self-supervised setting to predict the expected reward?
+
+
+
+\end{document}
