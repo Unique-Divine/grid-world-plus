@@ -65,3 +65,13 @@ class PathFinder:
                 # elif len(self.unexplored_spots) == 0
                 # else branch more
                 raise NotImplementedError  
+
+
+
+
+Issue = Issue.astype(str)
+stripped = [i.split() for i in Issue]
+
+pd.DataFrame(stripped)
+
+
