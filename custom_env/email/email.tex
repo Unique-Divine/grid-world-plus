@@ -58,14 +58,13 @@ Actor-Critic
 
 \begin{algorithm}[H]
 \SetAlgoLined
-\caption{Minibatch SGD training of GAN. The number of steps to apply the discriminator, $k$, is a hyperparameter. $k=1$ is the least expensive option.}
-
+\caption{Attention assisted actor critic}
 
 \For{\normalfont number of training episodes}{
   \While{\normalfont\text{not in terminal state }$(t<T)$ }{
 		In state $s_t$, select action $a_t$ from the policy $\pi$: $a_t \sim \pi_{\theta}(s_t)$ \\
     Perform action $a_t$ to retrieve $s_{t+1}, r_t$. \\
-    Memorize the memory $M_t := (s_t, a_t, s_{t+1}, r_t)$ for training the critic. \\
+    Store the memory $(s_t, a_t, s_{t+1}, r_t)$ to the replay buffer. \\
     \eIf % If
       {\normalfont\text{terminal state}}%, then 
       {Compute discounted rewards vector $\bm{R}$ with discount factor $\gamma$:  
@@ -78,16 +77,44 @@ Actor-Critic
       $t \leftarrow t+1 $}
     }
 
-	\# Train critic in order to update the policy. 
-  Compute values vector $\bm{V} = [V_\theta(s_0), V_\theta(s_1), \ldots, V_\theta(s_{t_f})]$ 
-  Value  = BERT($\bm{\tau}$)
-  Policy
+	\textbf{Method 1 (Contrastive):} Train critic with contrastive learning in order to update the policy.  \\
+  Use attention in masked training task similar to BERT (Zhu et al., 2020).   \\
+  Train by minimizing loss $\mathcal{L} = \mathcal{L}_{\text{RL}} + \lambda \mathcal{L}_{\text{ct}}$, where: \\
+  $\bm{K} = (k_1, \ldots, k_T)$: Set of keys encoded from non-makes set $S$. I.e.,
+  $k_i = \text{Enc}_{\theta_k}(s_i),  \forall s_i\in S$. 
+  
+  \begin{align*}
+    &\mathcal{L}_{\text{ct}} 
+      = \suml_{i=1}^{T} -M_i 
+        \log \frac{\exp(q_i\cdot k_i / \omega)}{\suml_{j=1}^T
+        \exp(q_i\cdot k_j / \omega)} , 
+        \quad \omega\text{ is a hyperparameter} \\
+    &\mathcal{L}_{\text{RL}} =  \ldots
+  \end{align*}
+
+  \textbf{Method 2 (Value estimates):}
+  Compute $\bm{V} = [V_\theta(s_0), \ldots, V_\theta(s_T)]$ with states from the trajectory $\tau$. 
 }
 
 The gradient-based updates can use any standard gradient-based learning rule.
 \end{algorithm}
 
 
+
+
+Non-synthetic environments to try out: Robotic arm manipulation, Open AI Gym. 
+\begin{itemize}
+  \item 
+\end{itemize}
+
+
+Deep Self-Supervised Bidirectional Episodic D Attention Actor-Critic 
+
+Deep Episodic D$\ldots$ Attention Actor Critic Self-Supervised
+
+$D E A D A_cSS$
+
+Stochastic Grad student descent 
 
 \paragraph{Attention:}
 
@@ -124,5 +151,6 @@ Generate N trajectories, where N is a hyperparameter.
 Attention trains on those trajectories in self-supervised setting to predict the expected reward?
 
 
+Query is a seq. Tryign to figure out which keys you're most similar to. I'll give you a query (seq of tokens) and you'll tell me which keys most similar. Based on the similar b/w q and k,  $\to$ matrix products ($W_q$ $W_k$) attention project q's onto k's $\to$ Similarity metric is learned. Simulateneously, importance vector is learned. 
 
 \end{document}
