@@ -44,9 +44,6 @@ class Environment:
         self._position_space: List[list] = self.position_space
         self.open_positions: List[list] = self._position_space
 
-        self.set_agent_goal()
-        self.set_holes()
-
     @property
     def position_space(self) -> list:
         row_dim, col_dim = self.grid.shape
@@ -109,30 +106,13 @@ class Environment:
         valid_spots = agent_spot + goal_spots
         valid_spots = [list(a) for a in valid_spots]
 
-        def explore_spot(spot, valid_spots) -> list:
-            nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
-            cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
-            shifts = nsew_shifts + cross_shifts 
-
-            for shift in shifts:
-                dx, dy = shift
-                shifted_spot = [spot[0] + dx, spot[1] + dy]
-
-                if shifted_spot in unexplored_spots:
-                    pass
-                elif shifted_spot in hole_spots:
-                    continue # skip if known hole
-                elif shifted_spot in valid_spots:
-                    continue # skip if known valid
-                else:
-                    valid_spots.append(shifted_spot) 
-
-                raise NotImplementedError("TODO")
-            return valid_spots
-            
-
+        raise NotImplementedError
         valid_path_exists = False
         return valid_path_exists
+
+    def create(self):
+        self.set_agent_goal()
+        self.set_holes()
 
     def generate_valid_path(self):
         """Generates a random grid that has a path from start to goal.
@@ -141,8 +121,6 @@ class Environment:
 
         pass
 
-env = Environment()
-env.valid_path_exists()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
