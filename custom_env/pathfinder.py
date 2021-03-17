@@ -5,8 +5,9 @@ import environment
 class PathFinder:
     def __init__(self, env: environment.Environment) -> None:
         self.branches = self.init_branches()
-        self.valid = None
+        self.env = env
         self.unexplored_spots: list = self.init_unexplored_spots()
+        self.valid: bool = False
 
         # unexplored_spots init to everything except the agent the holes.
         pass    
@@ -18,9 +19,8 @@ class PathFinder:
         (branches := []).append(branch)
         return branches
     
-    def init_unexplored_spots(self) -> List[list]:
+    def init_unexplored_spots(self) -> List[list]:        
         env = self.env
-        
         # Explored spots: Locations in the grid with agent or hole
         is_agent: np.ndarray = (env.grid == env.interactables['agent'])
         is_hole: np.ndarray = (env.grid == env.interactables['hole'])
@@ -34,44 +34,39 @@ class PathFinder:
         assert len(set(unexplored_spots).intersection(set(explored_spots))) == 0
         return unexplored_spots 
 
+    @staticmethod
+    def generate_shifted_spots(spot) -> List[list]:
+        nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
+        cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
+        shifts = nsew_shifts + cross_shifts 
+        shifted_spots = []
+        for shift in shifts:
+            dx, dy = shift
+            shifted_spot = [spot[0] + dx, spot[1] + dy]
+            shifted_spots.append(shifted_spot)
+        return shifted_spots
+
     def explore(self, spot, branch):
         branch.append(spot) # Add spot to the end of the branch
         self.branches.append(branch) # Update tree with branch extension
         self.unexplored_spots.remove(spot) # make spot "explored"
 
-    
     def pathfind(self):
-        def generate_shifted_spots(spot) -> List[list]:
-            nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
-            cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
-            shifts = nsew_shifts + cross_shifts 
-            shifted_spots = []
-            for shift in shifts:
-                dx, dy = shift
-                shifted_spot = [spot[0] + dx, spot[1] + dy]
-                shifted_spots.append(shifted_spot)
-            return shifted_spots
-
+        """[summary]
+        """
         for branch in self.branches:
             spot: list = branch[-1]
             assert len(spot) == 2
-            possible_spots = generate_shifted_spots(spot)
-            for spot in possible_spots:
-                # TODO 
-                
+            possible_spots = self.generate_shifted_spots(spot)
+            for spot in possible_spots:                
                 if spot in self.unexplored_spots:
                     self.explore(spot, branch)
-                    
-                # elif len(self.unexplored_spots) == 0
-                # else branch more
-                raise NotImplementedError  
 
-
-
-
-Issue = Issue.astype(str)
-stripped = [i.split() for i in Issue]
-
-pd.DataFrame(stripped)
-
-
+        branch_tips = [self.env.grid[branch[-1]] for branch in self.branches]
+        if len(self.unexplored_spots) == 0: # all spots explored
+            self.valid = False
+        elif self.env.interactables['goal'] in branch_tips: # goal discovered
+            self.valid = True
+        else: # keep exploring through recursion
+            self.pathfind()
+        return self.valid
