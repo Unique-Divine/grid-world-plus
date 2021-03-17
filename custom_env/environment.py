@@ -33,17 +33,16 @@ class Environment:
             raise ValueError("'grid_shape' must be a list-like of lenght 2.")
         self.grid = np.full(grid_shape, self.interactables['frozen'])
         assert self.grid.shape == grid_shape
-
-        # TODO: Implement blocked pathway
-        if (hole_pct < 0) or (hole_pct >= 1):
-            raise ValueError("'hole_pct' must be between 0 and 1.") 
-        self.hole_pct = hole_pct
-       
-        self.n_goals = n_goals
-        
+        # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
         self.open_positions: List[list] = self._position_space
 
+        # Declare board paramteres as class attributes
+        if (hole_pct < 0) or (hole_pct >= 1):
+            raise ValueError("'hole_pct' must be between 0 and 1.") 
+        self.hole_pct = hole_pct
+        self.n_goals = n_goals
+    
     @property
     def position_space(self) -> list:
         row_dim, col_dim = self.grid.shape
@@ -72,7 +71,7 @@ class Environment:
         positions_ag.append(agent_position)
 
         # Randomly select starting point for each goal.
-        for goal in np.arange(self.n_goals):
+        for _ in np.arange(self.n_goals):
             goal_position = self.randomly_select_open_position()
             self.open_positions.remove(goal_position)
             positions_ag.append(goal_position)
@@ -89,38 +88,22 @@ class Environment:
 
     def set_holes(self):
         n_holes: int = int(len(self.open_positions) * self.hole_pct)
-        for hole in range(n_holes):
+        for _ in range(n_holes):
             hole_position = self.randomly_select_open_position()
             self.open_positions.remove(hole_position)
             x, y = hole_position
             self.grid[x, y] = self.interactables['hole']
 
-    def valid_path_exists(self) -> bool:
-        # Calculate nearest goal to the agent 
-        unexplored_spots: List[list] = self.open_positions
-        hole_spots = list(np.argwhere(self.grid == self.interactables['hole']))
-        agent_spot: np.ndarray = list(np.argwhere(
-            self.grid == self.interactables['agent']))
-        goal_spots: list = list(np.argwhere(
-            self.grid == self.interactables['goal']))
-        valid_spots = agent_spot + goal_spots
-        valid_spots = [list(a) for a in valid_spots]
-
-        raise NotImplementedError
-        valid_path_exists = False
-        return valid_path_exists
-
     def create(self):
         self.set_agent_goal()
         self.set_holes()
 
-    def generate_valid_path(self):
+
+    def force_valid_path(self):
         """Generates a random grid that has a path from start to goal.
         """
-        # TODO Place holes in the open spots based on hole_pct.
-
-        pass
-
+        # TODO Get out the whiteboard and write an algorithm to do this. 
+        raise NotImplementedError
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
