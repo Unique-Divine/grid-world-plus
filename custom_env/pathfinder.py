@@ -19,7 +19,14 @@ class PathFinder:
         (branches := []).append(branch)
         return branches
     
-    def init_unexplored_spots(self) -> List[list]:        
+    def init_unexplored_spots(self) -> List[list]: 
+        """Initialize the `unexplored_spots` attribute for the pathfinding
+        algorithm. Unexplored spots are everything on the board that isn't an
+        agent, hole, or blocked.
+        
+        Returns:
+            unexplored_spots (List[list]): List of coordinate pairs to be used
+                as indices of the env.grid matrix."""       
         env = self.env
         # Explored spots: Locations in the grid with agent or hole
         is_agent: np.ndarray = (env.grid == env.interactables['agent'])
@@ -36,6 +43,14 @@ class PathFinder:
 
     @staticmethod
     def generate_shifted_spots(spot) -> List[list]:
+        """
+        Args:
+            spot (list): An ordered pair (x, y) for a particular matrix element
+                on the grid. 
+        Returns:
+            shifted_spots (List[list]): A list containing the coordinates for 
+                each position that neighbors the input 'spot' argument. 
+        """
         nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
         cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
         shifts = nsew_shifts + cross_shifts 
@@ -51,8 +66,12 @@ class PathFinder:
         self.branches.append(branch) # Update tree with branch extension
         self.unexplored_spots.remove(spot) # make spot "explored"
 
-    def pathfind(self):
-        """[summary]
+    def pathfind(self) -> bool:
+        """A recursive pathfinding method to see whether it is possible for 
+        the agent to solve the given randomly generated environmen. 
+
+        Returns:
+            (bool): 
         """
         for branch in self.branches:
             spot: list = branch[-1]
