@@ -13,8 +13,9 @@ class Environment:
     a varying starting position for the agent.
     Args:
         grid_shape (list-like): 
-        hole_pct (float): The probability of any open spot, i.e. one that 
-            isn't an agent, goal, or blocked, to be hole.  
+        hole_pct (float): The probability of any open spot to be a hole.
+            An "open spot" is any spot on the grid that is not an agent, 
+            goal, or blocked.   
         n_goals (int): Defaults to 1.
     
     Attributes:
@@ -30,7 +31,7 @@ class Environment:
 
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
-            raise ValueError("'grid_shape' must be a list-like of lenght 2.")
+            raise ValueError("'grid_shape' must be a list-like of length 2.")
         self.grid = np.full(grid_shape, self.interactables['frozen'])
         assert self.grid.shape == grid_shape
         # Initialize grid helper parameters  
@@ -86,7 +87,17 @@ class Environment:
             x, y = positions_ag[goal_idx + 1]
             self.grid[x, y] = self.interactables['goal'] 
 
-    def set_holes(self):
+    def set_holes(self, hole_pct: float = None):
+        """[summary]
+
+        Args:
+            hole_pct (float, optional): The probability that any open spot is a 
+                hold. An "open spot" is any spot on the grid that is not an 
+                agent, goal, or blocked. Defaults to 'env.hole_pct' attribute.
+                See the first line of this method to understand the default 
+                behavior.                 
+        """
+        hole_pct = self.hole_pct if (hole_pct == None) else hole_pct
         n_holes: int = int(len(self.open_positions) * self.hole_pct)
         for _ in range(n_holes):
             hole_position = self.randomly_select_open_position()
@@ -97,7 +108,6 @@ class Environment:
     def create(self):
         self.set_agent_goal()
         self.set_holes()
-
 
     def force_valid_path(self):
         """Generates a random grid that has a path from start to goal.
