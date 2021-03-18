@@ -1,6 +1,7 @@
 from typing import List
 import numpy as np
 import environment
+import random
 
 class PathFinder:
     def __init__(self, env: environment.Environment) -> None:
@@ -8,6 +9,7 @@ class PathFinder:
         self.env = env
         self.unexplored_spots: list = self.init_unexplored_spots()
         self.valid: bool = False
+        self.valid_path: list = None
 
         # unexplored_spots init to everything except the agent the holes.
         pass    
@@ -50,6 +52,8 @@ class PathFinder:
         Returns:
             shifted_spots (List[list]): A list containing the coordinates for 
                 each position that neighbors the input 'spot' argument. 
+                These shifted coordinates are then shuffled to give more variety
+                to the search path. 
         """
         nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
         cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
@@ -59,6 +63,7 @@ class PathFinder:
             dx, dy = shift
             shifted_spot = [spot[0] + dx, spot[1] + dy]
             shifted_spots.append(shifted_spot)
+        random.shuffle(shifted_spots) # randomize the order of the shifts
         return shifted_spots
 
     def explore(self, spot, branch):
@@ -82,10 +87,17 @@ class PathFinder:
                     self.explore(spot, branch)
 
         branch_tips = [self.env.grid[branch[-1]] for branch in self.branches]
-        if len(self.unexplored_spots) == 0: # all spots explored
-            self.valid = False
-        elif self.env.interactables['goal'] in branch_tips: # goal discovered
+        if self.env.interactables['goal'] in branch_tips: # goal discovered
             self.valid = True
+            is_valid_path = [tip == self.env.interactables['goal'] 
+                for tip in branch_tips]
+            self.valid_path = self.branches[is_valid_path.index(True)] 
+            # TODO: Check the valid fn works
+            # TODO: Check that the valid path is actually valid
+            
+        elif len(self.unexplored_spots) == 0: # all spots explored
+            self.valid = False
         else: # keep exploring through recursion
             self.pathfind()
+
         return self.valid
