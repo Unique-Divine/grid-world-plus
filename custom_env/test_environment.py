@@ -1,6 +1,7 @@
 #%%
-import environment
 import numpy as np
+import pathfinder
+import environment
 
 def test_set_agent_goal():
     env = environment.Environment(grid_shape=(50, 50), n_goals=60)
@@ -34,9 +35,6 @@ def test_set_agent_goal():
         env_object = env.grid[x, y]
         assert env_object in list(nonfrozen.values())
     
-    # TODO: Make sure n_goals is actually 60.
-    
-
 def test_set_holes():
     env = environment.Environment(grid_shape=(50, 50), n_goals=20)
 
@@ -62,8 +60,20 @@ def test_set_holes():
     assert n_holes == expected_n_holes, \
         "Mistakes were made in 'env.set_holes()'"
 
+def test_pathfinder():
+    env = environment.Environment(grid_shape=(100,100), n_goals=30, 
+                                  hole_pct = 0.5)
+    env.set_agent_goal()
+    env.set_holes(0.2)
+    pf = pathfinder.PathFinder(env)
+    pf.pathfind()
+    valid = pf.valid
+    valid_path = pf.valid_path
+    breakpoint()
+
 def run_all_tests(verbose = True):
-    for test in [test_set_agent_goal, test_set_holes]:
+    tests = [test_set_agent_goal, test_set_holes, test_pathfinder]
+    for test in tests:
         test()
         print(f"Test passed: '{test}'" if verbose else "")
  
