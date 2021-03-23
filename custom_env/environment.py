@@ -109,11 +109,12 @@ class Environment:
         self.set_agent_goal()
         self.set_holes()
 
-    def force_valid_path(self):
-        """Generates a random grid that has a path from start to goal.
-        """
-        # TODO Get out the whiteboard and write an algorithm to do this. 
-        raise NotImplementedError
+
+if __name__ == 'main':
+    # env = Environment()
+    # env.
+    # env.take_random_step()
+    pass
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
