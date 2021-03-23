@@ -1,7 +1,12 @@
 #%%
 import numpy as np
-import pathfinder
+import random
+import pathmaker
 import environment
+
+# -------------------------------------------------------
+# envrionment.py tests
+# -------------------------------------------------------
 
 def test_set_agent_goal():
     env = environment.Environment(grid_shape=(50, 50), n_goals=60)
@@ -60,22 +65,31 @@ def test_set_holes():
     assert n_holes == expected_n_holes, \
         "Mistakes were made in 'env.set_holes()'"
 
-def test_pathfinder():
+# -------------------------------------------------------
+# pathmaker.py tests
+# -------------------------------------------------------
+
+def test_generate_shifted_spots():
     env = environment.Environment(grid_shape=(100,100), n_goals=30, 
                                   hole_pct = 0.5)
-    env.set_agent_goal()
-    env.set_holes(0.2)
-    pf = pathfinder.PathFinder(env)
-    pf.pathfind()
-    valid = pf.valid
-    valid_path = pf.valid_path
-    breakpoint()
+    env.position_space
+    pm = pathmaker.PathMaker(env)
+    spot = random.choice(env.position_space)
+    for shifted_spot in pm.generate_shifted_spots(spot):
+        # Verify that 'shifted_spot' is on the grid.
+        assert shifted_spot in env.position_space, "Invalid move in random walk"
+        
+        # Verify that 'shifted_spot' is only 1 space away from 'spot'.
+        positions = np.vstack([spot, shifted_spot]) 
+        abs_displacement = np.abs(positions[0] - positions[1])
+        assert np.all(abs_displacement <= 1), "'shifted spot' is too far away."
 
 def run_all_tests(verbose = True):
-    tests = [test_set_agent_goal, test_set_holes, test_pathfinder]
+    tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots]
     for test in tests:
         test()
         print(f"Test passed: '{test}'" if verbose else "")
  
 if __name__ == "__main__":
+    import os; print(os.getcwd())
     run_all_tests()
