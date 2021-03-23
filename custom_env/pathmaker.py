@@ -3,7 +3,7 @@ import numpy as np
 import environment
 import random
 
-class PathFinder:
+class PathMaker:
     def __init__(self, env: environment.Environment) -> None:
         self.env = env
         self.branches = self.init_branches()
@@ -43,29 +43,31 @@ class PathFinder:
                                if (p not in explored_spots)]
         return [np.array(spot) for spot in unexplored_spots] 
 
-    def generate_shifted_spots(self, spot) -> List[np.ndarray]:
-        """
+    def generate_shifted_spots(self, spot) -> List[list]:
+        """Generator for a viable position adjacent to the input position.
+
         Args:
             spot (list): An ordered pair (x, y) for a particular matrix element
                 on the grid. 
         Returns:
-            shifted_spots (List[list]): A list containing the coordinates for 
-                each position that neighbors the input 'spot' argument. 
-                These shifted coordinates are then shuffled to give more variety
-                to the search path. 
+            shifted_spot (List[list]): A position that neighbors the input 
+                'spot' argument. This shifted coordinate is randomly selected
+                from the available options on the 'env.grid'. 
         """
         nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]
         cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  
-        shifts = nsew_shifts + cross_shifts
-        shifts: List[np.ndarray] = [np.array(shift) for shift in shifts]
+        shifts: List[list] = nsew_shifts + cross_shifts
         shifted_spots = []
+        x_0, y_0 = spot
         for shift in shifts:
-            shifted_spot = spot + shift
-            x, y = shifted_spot
-            if [x, y] in self.env.position_space:
+            dx, dy = shift
+            x, y = x_0 + dx, y_0 + dy 
+            shifted_spot = [x, y]
+            if shifted_spot in self.env.position_space:
                 shifted_spots.append(shifted_spot)
         random.shuffle(shifted_spots) # randomize the order of the shifts
-        return shifted_spots
+        for shifted_spot in shifted_spots:
+            yield shifted_spot
 
     def explore(self, spot, branch):
         branch.append(spot) # Add spot to the end of the branch
@@ -91,8 +93,8 @@ class PathFinder:
             for spot in possible_spots:
                 for u_spot in self.unexplored_spots:
                     if np.array_equal(spot, u_spot):
-                        branch = self.explore(spot, branch)
-                        yield spot, branch
+                        extended_branch = self.explore(spot, branch)
+                        yield spot, extended_branch
 
     def pathfind(self) -> np.ndarray:
         """A recursive pathfinding method to see whether it is possible for 
@@ -119,3 +121,23 @@ class PathFinder:
             # TODO: Check that the valid path is actually valid 
             print('yes', branch)
         return self.valid_path
+
+    # ----------------------
+    # Valid path generation:
+    # ----------------------
+
+    def take_random_step(self) -> List[int]:
+        # self.grid
+        agent_spot = np.argwhere(
+            self.env.grid == self.env.interactables['agent']).flatten()
+        breakpoint()
+
+        raise NotImplementedError
+        next_spot: tuple = x, y
+        return next_spot
+
+    def force_valid_path(self):
+        """Generates a random grid that has a path from start to goal.
+        """
+        # TODO Get out the whiteboard and write an algorithm to do this. 
+        raise NotImplementedError
