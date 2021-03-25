@@ -37,13 +37,16 @@ class Environment:
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
         self.open_positions: List[list] = self._position_space
-
+        self.agent_position: List[int] = None
+        self.goal_position: List[int] = None
+        
         # Declare board paramteres as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
             raise ValueError("'hole_pct' must be between 0 and 1.") 
         self.hole_pct = hole_pct
         self.n_goals = n_goals
-    
+
+     
     @property
     def position_space(self) -> list:
         row_dim, col_dim = self.grid.shape
@@ -68,6 +71,7 @@ class Environment:
 
         # Randomly select starting point for agent.
         agent_position = self.randomly_select_open_position()
+        self.agent_position = agent_position
         self.open_positions.remove(agent_position) 
         positions_ag.append(agent_position)
 
@@ -76,6 +80,7 @@ class Environment:
             goal_position = self.randomly_select_open_position()
             self.open_positions.remove(goal_position)
             positions_ag.append(goal_position)
+        self.goal_position = goal_position
         assert len(positions_ag) >= 2, "We expect at least 1 agent and 1 goal."
         
         # Label the agent on the grid.

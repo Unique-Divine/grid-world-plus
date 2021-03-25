@@ -96,13 +96,20 @@ def test_random_walk():
     random_path = pm.random_walk(n_steps = n_steps, start = spot)
     assert len(random_path) == n_steps + 1, "'path' is too short."
 
+def test_shortest_path():
+    env, pm = init_env()
+    env.set_agent_goal()
+    path = pm.shortest_path(env.agent_position, env.goal_position)
+    assert path[0] == env.agent_position
+    assert path[-1] == env.goal_position
+
 def run_all_tests(verbose = True):
     tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
-             test_random_walk]
+             test_random_walk, test_shortest_path]
     for test in tests:
         test()
         print(f"Test passed: '{test}'" if verbose else "")
  
 if __name__ == "__main__":
-    import os; print(os.getcwd())
     run_all_tests()
+    # breakpoint()
