@@ -1,8 +1,10 @@
 #%%
 import numpy as np
 import random
+from typing import List
 import pathmaker
 import environment
+
 
 # -------------------------------------------------------
 # envrionment.py tests
@@ -69,12 +71,15 @@ def test_set_holes():
 # pathmaker.py tests
 # -------------------------------------------------------
 
-def test_generate_shifted_spots():
+def init_env():
     env = environment.Environment(grid_shape=(100,100), n_goals=30, 
                                   hole_pct = 0.5)
-    env.position_space
     pm = pathmaker.PathMaker(env)
-    spot = random.choice(env.position_space)
+    return env, pm
+
+def test_generate_shifted_spots():
+    env, pm = init_env()
+    spot: List[int] = random.choice(env.position_space)
     for shifted_spot in pm.generate_shifted_spots(spot):
         # Verify that 'shifted_spot' is on the grid.
         assert shifted_spot in env.position_space, "Invalid move in random walk"
@@ -84,8 +89,16 @@ def test_generate_shifted_spots():
         abs_displacement = np.abs(positions[0] - positions[1])
         assert np.all(abs_displacement <= 1), "'shifted spot' is too far away."
 
+def test_random_walk():
+    env, pm = init_env()
+    spot: List[int] = random.choice(env.position_space)
+    n_steps =  env.grid.shape[0] // 2
+    random_path = pm.random_walk(n_steps = n_steps, start = spot)
+    assert len(random_path) == n_steps + 1, "'path' is too short."
+
 def run_all_tests(verbose = True):
-    tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots]
+    tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
+             test_random_walk]
     for test in tests:
         test()
         print(f"Test passed: '{test}'" if verbose else "")
