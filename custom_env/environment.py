@@ -39,7 +39,7 @@ class Environment:
         self.open_positions: List[list] = self._position_space
         self.agent_position: List[int] = None
         self.goal_position: List[int] = None
-        
+
         # Declare board paramteres as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
             raise ValueError("'hole_pct' must be between 0 and 1.") 
@@ -114,17 +114,15 @@ class Environment:
         self.set_agent_goal()
         self.set_holes()
 
-
-if __name__ == 'main':
-    # env = Environment()
-    # env.
+# if __name__ == 'main':
+    # env = ...
     # env.take_random_step()
-    pass
+    # pass
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
 # https://docs.python.org/3/library/random.html
 
-def frozen_lake_original_map():
-    from gym.envs.toy_text import frozen_lake
-    print(frozen_lake.generate_random_map())
+# def frozen_lake_original_map():
+#     from gym.envs.toy_text import frozen_lake
+#     print(frozen_lake.generate_random_map())

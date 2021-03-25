@@ -135,7 +135,6 @@ class PathMaker:
             assert np.any(np.array(diag_path[-1]) == np.array(ending_pt)), \
                 ("At least one component of the last pt in 'diag_path' should "
                 + "match the corresponding component in 'ending_pt'")
-            print(diag_path[1], ending_pt)
             return diag_path
 
         def straight_shot(diag_path: List[List[int]], ending_pt):
@@ -177,8 +176,6 @@ class PathMaker:
     # ----------------------
     # Valid path generation:
     # ----------------------
-
-
 
     def force_valid_path(self):
         """Generates a random grid that has a path from start to goal.
