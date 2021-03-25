@@ -1,14 +1,13 @@
-from typing import List
+from typing import List, Union, Generator
 import numpy as np
 import environment
 import random
+
 
 class PathMaker:
     def __init__(self, env: environment.Environment) -> None:
         self.env = env
         self.branches = self.init_branches()
-        self.unexplored_spots: List[np.ndarray] = self.init_unexplored_spots()
-        self.valid: bool = False
         self.valid_path: list = None
 
         # unexplored_spots init to everything except the agent the holes.
@@ -43,7 +42,38 @@ class PathMaker:
                                if (p not in explored_spots)]
         return [np.array(spot) for spot in unexplored_spots] 
 
-    def generate_shifted_spots(self, spot) -> List[list]:
+    def random_walk(self, n_steps: int, 
+                    start: List[Union[int, List[int]]]) -> List[List[int]]:
+        assert isinstance(start, list), "'start' must be a list."
+        assert len(start) > 0, \
+            "'start' cannot be empty. The random walk needs an starting point."
+        if isinstance(start[0], int):
+            assert len(start) == 2, "..." # TODO
+            spot = start
+            path = []; path.append(spot)
+        elif isinstance(start[0], list):
+            assert np.all([len(pt) == 2 for pt in start]), (
+                "The current value for 'start' has type List(list). As a list "
+                + "of ordered pairs, each of element of 'start' should have a "
+                + "length of 2. ")
+            spot = start[-1]
+            path = start
+        else:
+            raise ValueError("'start' must have type List[int] or List[list]")
+
+        for _ in range(n_steps):
+            shifted_spot: List[int]
+            for shifted_spot in self.generate_shifted_spots(spot):
+                if shifted_spot not in path:
+                    path.append(shifted_spot)
+                    spot = shifted_spot
+                    break
+                else:
+                    continue
+        assert len(path) == n_steps + 1, "'path' is too short."
+        return path
+
+    def generate_shifted_spots(self, spot) -> Generator[List[int], None, None]:
         """Generator for a viable position adjacent to the input position.
 
         Args:
@@ -69,57 +99,20 @@ class PathMaker:
         for shifted_spot in shifted_spots:
             yield shifted_spot
 
-    def explore(self, spot, branch):
-        branch.append(spot) # Add spot to the end of the branch
-        self.branches.append(branch) # Update tree with branch extension
-        # Make spot "explored", i.e. remove it from unexplored_spots
-        self.unexplored_spots = [x for x in self.unexplored_spots 
-                                 if not (spot == x).all()]
-        return branch
-
-    def possible_unexplored(self):
-        """Generator -> yields spot that is both possible to reach 
-        and unexplored in a at the end of a branch. 
-
-        Args:
-            possible ([type]): [description]
-            unexplored ([type]): [description]
-            branch 
-        """
-        for branch in self.branches:
-            branch[-1].size == 2, \
-                "'spot' has too many dimensions to be (x, y)"
-            possible_spots = self.generate_shifted_spots(branch[-1])        
-            for spot in possible_spots:
-                for u_spot in self.unexplored_spots:
-                    if np.array_equal(spot, u_spot):
-                        extended_branch = self.explore(spot, branch)
-                        yield spot, extended_branch
-
-    def pathfind(self) -> np.ndarray:
+    def make_path(self) -> np.ndarray:
         """A recursive pathfinding method to see whether it is possible for 
         the agent to solve the given randomly generated environmen. 
 
         Returns:
-            (bool): 
+            valid_path (List[list]): List of ordered pairs that consistute a 
+                guaranteed successful path for the agent. 
         """
-        for (x, y), branch in self.possible_unexplored():
-            if self.env.grid[x, y] == self.env.interactables['goal']:
-                # Case 1: Goal reached
-                self.valid = True
-                self.valid_path = np.vstack(branch)
-                break
-            elif len(self.unexplored_spots) == 0: 
-                # Case 2: all spots explored
-                self.valid = False
-                break
-            else: 
-                # Case 3: Keep exploring through recursion
-                self.pathfind()
-            
-            # TODO: Check the valid fn works
-            # TODO: Check that the valid path is actually valid 
-            print('yes', branch)
+        # self.env.grid[x, y] == self.env.interactables['goal']
+        
+        # TODO: Generate valid path
+        # 
+        # TODO: Check that the valid path is actually valid 
+        raise NotImplementedError
         return self.valid_path
 
     # ----------------------
