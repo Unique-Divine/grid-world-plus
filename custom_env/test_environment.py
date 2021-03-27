@@ -11,7 +11,7 @@ import environment
 # -------------------------------------------------------
 
 def test_set_agent_goal():
-    env = environment.Environment(grid_shape=(50, 50), n_goals=60)
+    env = environment.Env(grid_shape=(50, 50), n_goals=60)
     for item_name in ['agent', 'hole', 'goal', 'blocked']:
         n_items = int((env.grid == env.interactables[item_name]).sum())
         expected_count = 0
@@ -43,7 +43,7 @@ def test_set_agent_goal():
         assert env_object in list(nonfrozen.values())
     
 def test_set_holes():
-    env = environment.Environment(grid_shape=(50, 50), n_goals=20)
+    env = environment.Env(grid_shape=(50, 50), n_goals=20)
 
     env.set_agent_goal()
     n_holes: int = int((env.grid == env.interactables['hole']).sum())
@@ -72,7 +72,7 @@ def test_set_holes():
 # -------------------------------------------------------
 
 def init_env():
-    env = environment.Environment(grid_shape=(50,50), n_goals=10, 
+    env = environment.Env(grid_shape=(50,50), n_goals=10, 
                                   hole_pct = 0.5)
     pm = pathmaker.PathMaker(env)
     return env, pm

@@ -7,7 +7,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 class PathMaker:
-    def __init__(self, env: environment.Environment) -> None:
+    def __init__(self, env: environment.Env) -> None:
         self.env = env
         self.valid_path: list = None 
     
@@ -24,7 +24,7 @@ class PathMaker:
         is_agent: np.ndarray = (env.grid == env.interactables['agent'])
         is_hole: np.ndarray = (env.grid == env.interactables['hole'])
         is_explored = (is_agent | is_hole)
-        explored_spots: List[list] = [list(A) for A in np.argwhere(is_explored)]
+        explored_spots: List[list] = [A.tolist() for A in np.argwhere(is_explored)]
         assert len(env.position_space) >= len(explored_spots)
 
         # Store unexplored spots 

@@ -8,7 +8,7 @@ import gym.utils
 import random
 import itertools
 
-class Environment:
+class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
     a varying starting position for the agent.
     Args:
@@ -37,7 +37,8 @@ class Environment:
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
         self.open_positions: List[list] = self._position_space
-        self.agent_position: List[int] = None
+        self._agent_position: List[int] = self.agent_position 
+        self.agent_start: List[int] = None
         self.goal_position: List[int] = None
 
         # Declare board paramteres as class attributes
@@ -48,18 +49,29 @@ class Environment:
 
      
     @property
-    def position_space(self) -> list:
-        row_dim, col_dim = self.grid.shape
-        position_space: List[list] = []
-        for i in range(row_dim):
-            for j in range(col_dim):
-                position_space.append([i, j])
-        return position_space
+    def position_space(self) -> List[List[int]]:
+        try:
+            return self.position_space
+        except:
+            row_dim, col_dim = self.grid.shape
+            position_space: List[list] = []
+            for i in range(row_dim):
+                for j in range(col_dim):
+                    position_space.append([i, j])
+            return position_space
     
     @position_space.deleter
     def position_space(self):
         raise AttributeError("`position_space` attribute of class "
-            + "`Environment` is read-only.")
+            + "`Env` is read-only.")
+
+    @property
+    def agent_position(self) -> List[int]:
+        is_agent: np.ndarray = (self.grid == self.interactables['agent'])
+        if np.any(is_agent):
+            return np.argwhere(is_agent)[0].tolist() 
+        else:
+            return None
 
     def randomly_select_open_position(self) -> List[int]:
         position: List[int] = random.choice(self.open_positions)
@@ -70,10 +82,10 @@ class Environment:
         positions_ag: List[list] = []
 
         # Randomly select starting point for agent.
-        agent_position = self.randomly_select_open_position()
-        self.agent_position = agent_position
-        self.open_positions.remove(agent_position) 
-        positions_ag.append(agent_position)
+        agent_start = self.randomly_select_open_position()
+        self.agent_start = agent_start
+        self.open_positions.remove(agent_start) 
+        positions_ag.append(agent_start)
 
         # Randomly select starting point for each goal.
         for _ in np.arange(self.n_goals):
