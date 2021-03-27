@@ -72,7 +72,7 @@ def test_set_holes():
 # -------------------------------------------------------
 
 def init_env():
-    env = environment.Environment(grid_shape=(100,100), n_goals=30, 
+    env = environment.Environment(grid_shape=(50,50), n_goals=10, 
                                   hole_pct = 0.5)
     pm = pathmaker.PathMaker(env)
     return env, pm
@@ -115,7 +115,8 @@ def run_all_tests(verbose = True):
              test_random_walk, test_shortest_path, test_make_valid_path]
     for test in tests:
         test()
-        print(f"Test passed: '{test}'" if verbose else "")
+        if verbose:
+            print(f"Test passed: '{test.__name__}'")
  
 if __name__ == "__main__":
     run_all_tests()
