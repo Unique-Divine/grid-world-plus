@@ -103,9 +103,16 @@ def test_shortest_path():
     assert path[0] == env.agent_position
     assert path[-1] == env.goal_position
 
+def test_make_valid_path():
+    env, pm = init_env()
+    env.set_agent_goal()
+    valid_path = pm.make_valid_path()
+    assert valid_path[0] == env.agent_position
+    assert valid_path[-1] == env.goal_position
+
 def run_all_tests(verbose = True):
     tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
-             test_random_walk, test_shortest_path]
+             test_random_walk, test_shortest_path, test_make_valid_path]
     for test in tests:
         test()
         print(f"Test passed: '{test}'" if verbose else "")
