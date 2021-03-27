@@ -152,7 +152,7 @@ class PathMaker:
         def diag_path(starting_pt, ending_pt):
             displacement = np.array(ending_pt) - np.array(starting_pt)
             directions = (displacement / np.abs(displacement)).astype(int) 
-            magnitude = np.abs(np.min(displacement))
+            magnitude: int = np.min(np.abs(displacement))
             diag = np.full(shape = (magnitude + 1, 2), fill_value = starting_pt)
             for row_idx in range(1, magnitude + 1):
                 diag[row_idx] = diag[row_idx - 1] + directions
@@ -165,15 +165,17 @@ class PathMaker:
                 + "match the corresponding component in 'ending_pt'")
             return diag_path
 
-        def straight_shot(diag_path: List[List[int]], ending_pt):
+        def straight_shot(diag_path: List[List[int]], 
+                          ending_pt) -> List[List[int]]:
             starting_pt = diag_path[-1]
             displacement = np.array(ending_pt) - np.array(starting_pt)
              
-            assert np.any(displacement == 0)
+            assert np.any(displacement == 0), \
+                "At least one of the displacement components should be 0."
             directions = np.where(
                 displacement == 0, 0, 
                 displacement / np.abs(displacement)).astype(int)
-            magnitude = np.abs(np.max(displacement))
+            magnitude = np.max(np.abs(displacement))
             straight = np.full(shape = (magnitude + 1, 2), 
                                fill_value = starting_pt)
             for row_idx in range(1,  magnitude + 1):
@@ -181,8 +183,11 @@ class PathMaker:
             straight_path = [pt.tolist() for pt in straight]
             return straight_path[1:]
 
+        # Compute shortest path
         diag = diag_path(pt_a, pt_b)
         shortest_path = diag + straight_shot(diag, pt_b)
+        assert shortest_path[0] == pt_a
+        assert shortest_path[-1] == pt_b
         return shortest_path
 
     def make_valid_path(self, rw_pct = 0.15, sp_pct = 0.15) -> np.ndarray:

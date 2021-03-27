@@ -110,9 +110,15 @@ def test_make_valid_path():
     assert valid_path[0] == env.agent_position
     assert valid_path[-1] == env.goal_position
 
+def toy_test():
+    env, pm = init_env()
+
+    env.create()
+
 def run_all_tests(verbose = True):
     tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
-             test_random_walk, test_shortest_path, test_make_valid_path]
+             test_random_walk, test_shortest_path, test_make_valid_path,
+             toy_test]
     for test in tests:
         test()
         if verbose:
