@@ -6,6 +6,7 @@ from io import StringIO
 from typing import List
 import gym.utils
 import random
+import pathmaker
 import itertools
 
 class Env:
@@ -123,13 +124,31 @@ class Env:
             self.grid[x, y] = self.interactables['hole']
 
     def create(self):
+        """Place all of the interactables on the grid to create a new env.
+        """
         self.set_agent_goal()
+        valid_path = pathmaker.PathMaker(self).make_valid_path()
+        # Clear a path for the agent
+        for position in valid_path:
+            if position in self.open_positions:
+                self.open_positions.remove(position)
+        # Place holes in some of the empty spaces
         self.set_holes()
+        # Save initial state.
+        
+        # TODO: Check that there are holes on the grid.
+        # TODO: Check that none of the positions in valid path now have holes.
 
-# if __name__ == 'main':
-    # env = ...
-    # env.take_random_step()
-    # pass
+    def reset(self):
+        if self.agent_start == None:
+            self.create()
+
+        
+
+        pass 
+        # TODO 
+        
+
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search

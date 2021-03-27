@@ -112,7 +112,6 @@ def test_make_valid_path():
 
 def toy_test():
     env, pm = init_env()
-
     env.create()
 
 def run_all_tests(verbose = True):
