@@ -166,7 +166,7 @@ class Env:
         # TODO: Check that none of the positions in valid path now have holes.
 
     def reset(self):
-        """Returns the initial env it has been created. 
+        """Returns the initial env if it has been created. 
 
         Returns:
             Env: The initial environment.
