@@ -110,18 +110,39 @@ def test_make_valid_path():
     assert valid_path[0] == env.agent_position
     assert valid_path[-1] == env.goal_position
 
-def toy_test():
+def test_create_reset():
     env, pm = init_env()
-    env.create()
+    passes = []
+    passes.append(env.env_start == None) # T
 
+    # Fresh env
+    env.create()
+    assert env.env_start != None
+    assert np.all(env.grid == env.env_start.grid), \
+        "'env' should be the intial env after first call of 'env.create()'"
+
+    # After a reset
+    env = env.reset()  
+    assert env.env_start != None
+    assert np.all(env.grid == env.env_start.grid), \
+        "After a reset, 'env' and 'env.env_start' should match"
+
+    # After another create, 'env' and 'env.env_start' are probably different,
+    env.create()
+    assert env.env_start != None
+    env = env.reset() # but now they should match again.
+    assert np.all(env.grid == env.env_start.grid), \
+        "After a reset, 'env' and 'env.env_start' should match"
+    
 def run_all_tests(verbose = True):
     tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
              test_random_walk, test_shortest_path, test_make_valid_path,
-             toy_test]
+             test_create_reset]
     for test in tests:
         test()
         if verbose:
             print(f"Test passed: '{test.__name__}'")
+    print("\nAll tests passed." if verbose else "")
  
 if __name__ == "__main__":
     run_all_tests()

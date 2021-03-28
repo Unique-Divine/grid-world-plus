@@ -1,19 +1,23 @@
 #%%
 import sys
 import numpy as np
-import pandas as pd
+import copy
 from io import StringIO
 from typing import List
 import gym.utils
 import random
 import pathmaker
-import itertools
+try: 
+    import cPickle as pickle 
+except:
+    import pickle 
 
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
     a varying starting position for the agent.
+    
     Args:
-        grid_shape (list-like): 
+        grid_shape (list-like): The matrix dimensions of the environment. 
         hole_pct (float): The probability of any open spot to be a hole.
             An "open spot" is any spot on the grid that is not an agent, 
             goal, or blocked.   
@@ -39,8 +43,11 @@ class Env:
         self._position_space: List[list] = self.position_space
         self.open_positions: List[list] = self._position_space
         self._agent_position: List[int] = self.agent_position 
-        self.agent_start: List[int] = None
         self.goal_position: List[int] = None
+
+        # Initial grid - for env.reset()
+        self.agent_start: List[int] = None
+        self.env_start = None
 
         # Declare board paramteres as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
@@ -48,7 +55,10 @@ class Env:
         self.hole_pct = hole_pct
         self.n_goals = n_goals
 
-     
+    # --------------------------------------------------------------------
+    # Properties 
+    # --------------------------------------------------------------------
+
     @property
     def position_space(self) -> List[List[int]]:
         try:
@@ -74,6 +84,10 @@ class Env:
         else:
             return None
 
+    # --------------------------------------------------------------------
+    # Helper functions for creating an env from scratch
+    # --------------------------------------------------------------------
+    
     def randomly_select_open_position(self) -> List[int]:
         position: List[int] = random.choice(self.open_positions)
         return position
@@ -123,32 +137,48 @@ class Env:
             x, y = hole_position
             self.grid[x, y] = self.interactables['hole']
 
+    # --------------------------------------------------------------------
+    # Functions for the user
+    # --------------------------------------------------------------------
+
     def create(self):
-        """Place all of the interactables on the grid to create a new env.
-        """
-        self.set_agent_goal()
-        valid_path = pathmaker.PathMaker(self).make_valid_path()
+        """Place all of the interactables on the grid to create a new env."""
+        self.set_agent_goal() # Create agent and goals
+        
         # Clear a path for the agent
+        valid_path = pathmaker.PathMaker(self).make_valid_path()
         for position in valid_path:
             if position in self.open_positions:
                 self.open_positions.remove(position)
+        
         # Place holes in some of the empty spaces
         self.set_holes()
-        # Save initial state.
         
+        # Save initial state if this is the first time create() has been called.
+        if self.env_start == None:
+            self.env_start: Env = Env()
+            self.env_start.grid = self.grid
+            self.env_start.open_positions = self.open_positions
+            self.env_start.env_start = self.env_start
+            assert self.env_start != None
+
         # TODO: Check that there are holes on the grid.
         # TODO: Check that none of the positions in valid path now have holes.
 
     def reset(self):
-        if self.agent_start == None:
+        """Returns the initial env it has been created. 
+
+        Returns:
+            Env: The initial environment.
+        """        
+        if self.env_start != None:
+            return self.env_start
+
+        elif self.env_start == None:
             self.create()
-
+            assert self.env_start != None
+        # TODO Test that this works as intended 
         
-
-        pass 
-        # TODO 
-        
-
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
