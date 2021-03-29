@@ -2,15 +2,10 @@
 import sys
 import numpy as np
 import copy
-from io import StringIO
 from typing import List
 import gym.utils
 import random
 import pathmaker
-try: 
-    import cPickle as pickle 
-except:
-    import pickle 
 
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
@@ -143,6 +138,7 @@ class Env:
         self.env_start.open_positions = env.open_positions
         self.env_start.env_start = self.env_start
         assert self.env_start != None
+
     # --------------------------------------------------------------------
     # Functions for the user
     # --------------------------------------------------------------------
