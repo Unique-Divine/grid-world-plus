@@ -1,9 +1,17 @@
 #%%
-import environment
 import numpy as np
+import random
+from typing import List
+import pathmaker
+import environment
+
+
+# -------------------------------------------------------
+# envrionment.py tests
+# -------------------------------------------------------
 
 def test_set_agent_goal():
-    env = environment.Environment(grid_shape=(50, 50), n_goals=60)
+    env = environment.Env(grid_shape=(50, 50), n_goals=60)
     for item_name in ['agent', 'hole', 'goal', 'blocked']:
         n_items = int((env.grid == env.interactables[item_name]).sum())
         expected_count = 0
@@ -34,11 +42,8 @@ def test_set_agent_goal():
         env_object = env.grid[x, y]
         assert env_object in list(nonfrozen.values())
     
-    # TODO: Make sure n_goals is actually 60.
-    
-
 def test_set_holes():
-    env = environment.Environment(grid_shape=(50, 50), n_goals=20)
+    env = environment.Env(grid_shape=(50, 50), n_goals=20)
 
     env.set_agent_goal()
     n_holes: int = int((env.grid == env.interactables['hole']).sum())
@@ -62,10 +67,82 @@ def test_set_holes():
     assert n_holes == expected_n_holes, \
         "Mistakes were made in 'env.set_holes()'"
 
+# -------------------------------------------------------
+# pathmaker.py tests
+# -------------------------------------------------------
+
+def init_env():
+    env = environment.Env(grid_shape=(50,50), n_goals=10, 
+                                  hole_pct = 0.5)
+    pm = pathmaker.PathMaker(env)
+    return env, pm
+
+def test_generate_shifted_spots():
+    env, pm = init_env()
+    spot: List[int] = random.choice(env.position_space)
+    for shifted_spot in pm.generate_shifted_spots(spot):
+        # Verify that 'shifted_spot' is on the grid.
+        assert shifted_spot in env.position_space, "Invalid move in random walk"
+        
+        # Verify that 'shifted_spot' is only 1 space away from 'spot'.
+        positions = np.vstack([spot, shifted_spot]) 
+        abs_displacement = np.abs(positions[0] - positions[1])
+        assert np.all(abs_displacement <= 1), "'shifted spot' is too far away."
+
+def test_random_walk():
+    env, pm = init_env()
+    spot: List[int] = random.choice(env.position_space)
+    n_steps =  env.grid.shape[0] // 2
+    random_path = pm.random_walk(n_steps = n_steps, start = spot)
+    assert len(random_path) == n_steps + 1, "'path' is too short."
+
+def test_shortest_path():
+    env, pm = init_env()
+    env.set_agent_goal()
+    path = pm.shortest_path(env.agent_position, env.goal_position)
+    assert path[0] == env.agent_position
+    assert path[-1] == env.goal_position
+
+def test_make_valid_path():
+    env, pm = init_env()
+    env.set_agent_goal()
+    valid_path = pm.make_valid_path()
+    assert valid_path[0] == env.agent_position
+    assert valid_path[-1] == env.goal_position
+
+def test_create_reset():
+    env, pm = init_env()
+    passes = []
+    passes.append(env.env_start == None) # T
+
+    # Fresh env
+    env.create()
+    assert env.env_start != None
+    assert np.all(env.grid == env.env_start.grid), \
+        "'env' should be the intial env after first call of 'env.create()'"
+
+    # After a reset
+    env = env.reset()  
+    assert env.env_start != None
+    assert np.all(env.grid == env.env_start.grid), \
+        "After a reset, 'env' and 'env.env_start' should match"
+
+    # After another create, 'env' and 'env.env_start' are probably different,
+    env.create()
+    assert env.env_start != None
+    env = env.reset() # but now they should match again.
+    assert np.all(env.grid == env.env_start.grid), \
+        "After a reset, 'env' and 'env.env_start' should match"
+    
 def run_all_tests(verbose = True):
-    for test in [test_set_agent_goal, test_set_holes]:
+    tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
+             test_random_walk, test_shortest_path, test_make_valid_path,
+             test_create_reset]
+    for test in tests:
         test()
-        print(f"Test passed: '{test}'" if verbose else "")
+        if verbose:
+            print(f"Test passed: '{test.__name__}'")
+    print("\nAll tests passed." if verbose else "")
  
 if __name__ == "__main__":
     run_all_tests()
