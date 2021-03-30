@@ -133,7 +133,11 @@ class Env:
             self.grid[x, y] = self.interactables['hole']
 
     def set_env_start(self, env):
-        self.env_start = env
+        self.env_start = Env(
+            grid_shape = env.grid.shape,
+            hole_pct = self.hole_pct,
+            n_goals = env.n_goals
+        )
         self.env_start.grid = env.grid
         self.env_start.open_positions = env.open_positions
         self.env_start.env_start = self.env_start
@@ -158,11 +162,8 @@ class Env:
         
         # Save initial state if this is the first time create() has been called.
         if self.env_start == None:
-            self.set_env_start(env = Env(
-                grid_shape = self.grid.shape,
-                hole_pct = self.hole_pct,
-                n_goals = self.n_goals
-            ))
+            self.set_env_start(env = self)
+
 
         # TODO: Check that there are holes on the grid.
         # TODO: Check that none of the positions in valid path now have holes.

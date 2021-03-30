@@ -115,8 +115,7 @@ def test_make_valid_path():
 
 def test_create_reset():
     env, pm = init_env()
-    passes = []
-    passes.append(env.env_start == None) # T
+    assert env.env_start == None, "'env_start' attribute should init to None."
 
     # Fresh env
     env.create()
@@ -148,4 +147,5 @@ def run_all_tests(verbose = True):
     print("\nAll tests passed." if verbose else "")
  
 if __name__ == "__main__":
-    run_all_tests()
+    for _ in range(10):
+        run_all_tests()
