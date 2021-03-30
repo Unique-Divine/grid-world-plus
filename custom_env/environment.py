@@ -158,7 +158,11 @@ class Env:
         
         # Save initial state if this is the first time create() has been called.
         if self.env_start == None:
-            self.set_env_start(env = Env())
+            self.set_env_start(env = Env(
+                grid_shape = self.grid.shape,
+                hole_pct = self.hole_pct,
+                n_goals = self.n_goals
+            ))
 
         # TODO: Check that there are holes on the grid.
         # TODO: Check that none of the positions in valid path now have holes.

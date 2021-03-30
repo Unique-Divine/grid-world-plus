@@ -107,8 +107,11 @@ def test_make_valid_path():
     env, pm = init_env()
     env.set_agent_goal()
     valid_path = pm.make_valid_path()
-    assert valid_path[0] == env.agent_position
-    assert valid_path[-1] == env.goal_position
+    try:
+        assert valid_path[0] == env.agent_position
+        assert valid_path[-1] == env.goal_position
+    except:
+        breakpoint()
 
 def test_create_reset():
     env, pm = init_env()
