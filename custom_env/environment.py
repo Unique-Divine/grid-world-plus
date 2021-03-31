@@ -292,6 +292,15 @@ class PathMaker:
         return path
 
     def diag_path(self, starting_pt: List[int], ending_pt: List[int]):
+        """[summary] TODO
+
+        Args:
+            starting_pt (List[int]): [description]
+            ending_pt (List[int]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         displacement = np.array(ending_pt) - np.array(starting_pt)
         if np.all(displacement == 0):
             # Case 1: 'ending_pt' has already been reached
@@ -317,6 +326,15 @@ class PathMaker:
     @staticmethod
     def straight_shot(diag_path: List[List[int]], 
                         ending_pt: List[int]) -> List[List[int]]:
+        """[summary] TODO
+
+        Args:
+            diag_path (List[List[int]]): [description]
+            ending_pt (List[int]): [description]
+
+        Returns:
+            List[List[int]]: [description]
+        """
         starting_pt = diag_path[-1]
         displacement = np.array(ending_pt) - np.array(starting_pt)
         assert np.any(displacement == 0), \
@@ -429,8 +447,8 @@ class PathMaker:
                 try:
                     assert [path_a[0], path_a[-1]] == [agent_position, goal_position] 
                 except:
-                        print('case 1')
-                        breakpoint()
+                    print('case 1')
+                    breakpoint()
             elif (len(shortest) - 2) <= (2 * sp_steps):
             # If shortest path steps 'sp_steps' spans shortest 
                 path_a += shortest[1:-1]
@@ -459,12 +477,6 @@ class PathMaker:
     # ----------------------
     # Valid path generation:
     # ----------------------
-
-    def force_valid_path(self):
-        """Generates a random grid that has a path from start to goal.
-        """
-        # TODO Get out the whiteboard and write an algorithm to do this. 
-        raise NotImplementedError
 
 
 def toy():
