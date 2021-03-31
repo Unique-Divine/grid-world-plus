@@ -79,7 +79,7 @@ class Env:
         self.n_goals = n_goals
 
     def __repr__(self) -> str:
-        return f"Env:\n{self.render_as_char()}"
+        return f"Env:\n{self.render_as_char(self.grid)}"
     def __str__(self) -> str:
         return str(self.grid)
 
@@ -87,16 +87,16 @@ class Env:
         raise NotImplementedError
         pass
 
-    def render_as_char(self) -> np.ndarray:
+    def render_as_char(self, grid) -> np.ndarray:
         interactables_to_char = {
-            self.interactables['frozen']: '_', 
-            self.interactables['hole']: 'o', 
-            self.interactables['goal']: 'G', 
-            self.interactables['agent']: 'A',
-            self.interactables['blocked']: 'b'} 
+            self.interactables['frozen']: "_", 
+            self.interactables['hole']: "o", 
+            self.interactables['goal']: "G", 
+            self.interactables['agent']: "A",
+            self.interactables['blocked']: "'"} 
         char_grid = np.asarray(
-            [interactables_to_char[e] for e in self.grid.flatten()],
-            dtype = str).reshape(self.grid.shape)
+            [interactables_to_char[e] for e in grid.flatten()],
+            dtype = str).reshape(grid.shape)
         return char_grid
 
     # --------------------------------------------------------------------
@@ -582,9 +582,10 @@ class State:
                     sight[rel_row, rel_col] = self.env.interactables['blocked']
         return sight
 
+    
         
-    # def __repr__(self):
-    #     return f"{np.eye(2)}"
+    def __repr__(self):
+        return f"{self.env.render_as_char(self.sight)}"
 
 
 
