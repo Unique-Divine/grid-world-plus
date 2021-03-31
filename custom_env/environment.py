@@ -9,6 +9,30 @@ import warnings
 warnings.filterwarnings("ignore")
 import gym.utils
 
+class Point(np.ndarray):
+    """A 1D np.ndarray of size 2 that contains the row and column
+    indices for a point in the environment.  
+
+    Examples
+    --------
+    >>> p1 = Point(1, 2)
+    >>> p1
+    array([1, 2], dtype=int16)
+    >>> p2 = Point([1, 3])
+    >>> p2
+    array([1, 3], dtype=int16)
+    >>> p1 == p2
+    array([ True, False])
+    """
+    def __new__(cls, *args):
+        if len(args) == 2:
+            self = np.asarray([*args], dtype=np.int16)
+        elif len(args) == 1:
+            self = np.asarray(args[0], dtype=np.int16)
+        else:
+            raise ValueError("oof")
+        return self
+
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
     a varying starting position for the agent.
@@ -28,13 +52,15 @@ class Env:
         grid (np.ndarray): A matrix with the encodings for each interactable. 
     """
     def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
-        self.interactables = {'frozen': '_', 'agent': 'A', 'goal': 'G', 
-            'hole': 'o', 'blocked': 'b'} 
+        self.interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
+                              'agent': 7, 'blocked': 3} 
 
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
             raise ValueError("'grid_shape' must be a list-like of length 2.")
-        self.grid = np.full(grid_shape, self.interactables['frozen'])
+        self.grid = np.full(shape = grid_shape, 
+                            fill_value = self.interactables['frozen'], 
+                            dtype = np.int32)
         assert self.grid.shape == grid_shape
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
@@ -51,6 +77,27 @@ class Env:
             raise ValueError("'hole_pct' must be between 0 and 1.") 
         self.hole_pct = hole_pct
         self.n_goals = n_goals
+
+    def __repr__(self) -> str:
+        return f"Env:\n{self.render_as_char()}"
+    def __str__(self) -> str:
+        return str(self.grid)
+
+    def render(self):
+        raise NotImplementedError
+        pass
+
+    def render_as_char(self) -> np.ndarray:
+        interactables_to_char = {
+            self.interactables['frozen']: '_', 
+            self.interactables['hole']: 'o', 
+            self.interactables['goal']: 'G', 
+            self.interactables['agent']: 'A',
+            self.interactables['blocked']: 'b'} 
+        char_grid = np.asarray(
+            [interactables_to_char[e] for e in self.grid.flatten()],
+            dtype = str).reshape(self.grid.shape)
+        return char_grid
 
     # --------------------------------------------------------------------
     # Properties 
@@ -478,6 +525,69 @@ class PathMaker:
     # Valid path generation:
     # ----------------------
 
+class Agent:
+    def __init__(self, sight_distance) -> None:
+        self._sight_distance: int = sight_distance
+        self.policy = None # TODO
+        pass
+
+    @property
+    def sight_distance(self) -> int:
+        return self._sight_distance
+    
+    # def __repr__(self):
+        # return self.__class__.__name__
+
+class State:
+    """[summary]
+    
+    Args:
+        env (Env): An environment with an agent in it. The environment contains 
+            all information needed to get a state for reinforcement learning. 
+
+    Attributes:
+        center_abs (Point): The agent's on the 'env.grid'.
+        center (Point): The agent's position on the current sight window.
+    """
+    def __init__(self, env: Env, agent: Agent) -> None:
+        self.env: Env = env
+        self.agent: Agent = agent
+        self.center_abs: Point = Point(env.agent_position)
+        self._center: Point = self.center
+        self._sight: np.ndarray = self.sight
+        
+        pass
+    
+    @property
+    def center(self) -> Point:
+        return Point([self.agent.sight_distance] * 2)
+    
+    @property 
+    def sight(self) -> np.ndarray:
+        sd: int = self.agent.sight_distance
+        center_abs: Point = self.center_abs
+        sight = np.empty(
+            shape= [self.agent.sight_distance * 2 + 1] * 2, 
+            dtype = np.int16)
+        row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
+        col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
+        for row_idx in row_view:
+            for col_idx in col_view:
+                displacement = Point(row_idx, col_idx) - center_abs
+                relative_position: Point = self.center + displacement
+                rel_row, rel_col = relative_position
+                if [row_idx, col_idx] in self.env.position_space:
+                    sight[rel_row, rel_col] = self.env.grid[row_idx, col_idx]
+                else:
+                    sight[rel_row, rel_col] = self.env.interactables['blocked']
+        return sight
+
+        
+    # def __repr__(self):
+    #     return f"{np.eye(2)}"
+
+
+
 
 def toy():
     def init_env():
@@ -486,8 +596,18 @@ def toy():
         pm = PathMaker(env)
         return env, pm
     env, pm = init_env()
-    env.set_agent_goal()
-    valid_path = pm.make_valid_path()
+    env.reset()
+
+    g = env.grid
+
+    Alex = Agent(5)
+    s0 = State(env, Alex)
+
+    p1  = Point(1, 2)
+    p2 = Point([1, 3])
+
+    breakpoint()
+    print('code')
 
 toy()
 
