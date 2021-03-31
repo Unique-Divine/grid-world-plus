@@ -1,13 +1,7 @@
-from typing import List, Union, Generator
-import numpy as np
-import environment
-import random
-import copy
-import warnings
-warnings.filterwarnings("ignore")
+
 
 class PathMaker:
-    def __init__(self, env: environment.Env) -> None:
+    def __init__(self, env) -> None:
         self.env = env
         self.valid_path: list = None 
     
@@ -113,6 +107,52 @@ class PathMaker:
             + f"len(path): {len(path)}, n_steps: {n_steps}")
         return path
 
+    def diag_path(self, starting_pt: List[int], ending_pt: List[int]):
+        displacement = np.array(ending_pt) - np.array(starting_pt)
+        if np.all(displacement == 0):
+            # Case 1: 'ending_pt' has already been reached
+            return [starting_pt]
+        elif np.any(displacement == 0):
+            # Case 2: 'displacement' is vertical or horizontal
+            return self.straight_shot([starting_pt], ending_pt)
+        
+        directions = (displacement / np.abs(displacement)).astype(int) 
+        magnitude: int = np.min(np.abs(displacement))
+        diag = np.full(shape = (magnitude + 1, 2), fill_value = starting_pt)
+        for row_idx in range(1, magnitude + 1):
+            diag[row_idx] = diag[row_idx - 1] + directions
+        diag_path = [pt.tolist() for pt in diag]
+
+        assert diag_path[0] == starting_pt, \
+            "'diag_path[0]' should be the starting point." 
+        assert np.any(np.array(diag_path[-1]) == np.array(ending_pt)), \
+            ("At least one component of the last pt in 'diag_path' should "
+            + "match the corresponding component in 'ending_pt'")
+        return diag_path
+
+    @staticmethod
+    def straight_shot(diag_path: List[List[int]], 
+                        ending_pt: List[int]) -> List[List[int]]:
+        starting_pt = diag_path[-1]
+        displacement = np.array(ending_pt) - np.array(starting_pt)
+        assert np.any(displacement == 0), \
+            "At least one of the displacement components should be 0."
+        if np.all(displacement == 0):
+            # 'ending_pt' has already been reached on 'diag_path'.
+            return diag_path[1:]
+        directions = np.where(
+            displacement == 0, 0, 
+            displacement / np.abs(displacement)).astype(int)
+        magnitude = np.max(np.abs(displacement))
+        straight = np.full(shape = (magnitude + 1, 2), 
+                            fill_value = starting_pt)
+        for row_idx in range(1,  magnitude + 1):
+            straight[row_idx] = straight[row_idx - 1] + directions
+        straight_path = [pt.tolist() for pt in straight]
+        assert straight_path[-1] == ending_pt, ("'straight_path' is not "
+            + "ending at 'ending_pt'.")
+        return straight_path
+
     def shortest_path(self, path_a: list, 
                       path_b: list) -> List[Union[List, int]]:
         """Find the shortest path between the ends of two paths on the env.grid.
@@ -148,46 +188,20 @@ class PathMaker:
             pt_b = path_b[-1]
         else:
             raise ValueError("'path_b' must be a position or list of positions")
-        
-        def diag_path(starting_pt, ending_pt):
-            displacement = np.array(ending_pt) - np.array(starting_pt)
-            directions = (displacement / np.abs(displacement)).astype(int) 
-            magnitude: int = np.min(np.abs(displacement))
-            diag = np.full(shape = (magnitude + 1, 2), fill_value = starting_pt)
-            for row_idx in range(1, magnitude + 1):
-                diag[row_idx] = diag[row_idx - 1] + directions
-            diag_path = [pt.tolist() for pt in diag]
-
-            assert diag_path[0] == starting_pt, \
-                "'diag_path[0]' should be the starting point." 
-            assert np.any(np.array(diag_path[-1]) == np.array(ending_pt)), \
-                ("At least one component of the last pt in 'diag_path' should "
-                + "match the corresponding component in 'ending_pt'")
-            return diag_path
-
-        def straight_shot(diag_path: List[List[int]], 
-                          ending_pt) -> List[List[int]]:
-            starting_pt = diag_path[-1]
-            displacement = np.array(ending_pt) - np.array(starting_pt)
-             
-            assert np.any(displacement == 0), \
-                "At least one of the displacement components should be 0."
-            directions = np.where(
-                displacement == 0, 0, 
-                displacement / np.abs(displacement)).astype(int)
-            magnitude = np.max(np.abs(displacement))
-            straight = np.full(shape = (magnitude + 1, 2), 
-                               fill_value = starting_pt)
-            for row_idx in range(1,  magnitude + 1):
-                straight[row_idx] = straight[row_idx - 1] + directions
-            straight_path = [pt.tolist() for pt in straight]
-            return straight_path[1:]
 
         # Compute shortest path
-        diag = diag_path(pt_a, pt_b)
-        shortest_path = diag + straight_shot(diag, pt_b)
-        assert shortest_path[0] == pt_a
-        assert shortest_path[-1] == pt_b
+        diag = self.diag_path(pt_a, pt_b)
+        straight = self.straight_shot(diag, pt_b)
+        if [diag[0], diag[-1]] == [pt_a, pt_b]:
+            shortest_path = diag
+        elif [straight[0], straight[-1]] == [pt_a, pt_b]:
+            shortest_path = straight
+        else:
+            shortest_path = diag + straight[1:]
+        try:
+            assert [shortest_path[0], shortest_path[-1]] == [pt_a, pt_b]
+        except:
+            breakpoint()
         return shortest_path
 
     def make_valid_path(self, rw_pct = 0.15, sp_pct = 0.15) -> np.ndarray:
@@ -251,3 +265,12 @@ class PathMaker:
         """
         # TODO Get out the whiteboard and write an algorithm to do this. 
         raise NotImplementedError
+
+from test_environment import init_env
+
+def toy():
+    env, pm = init_env()
+    env.set_agent_goal()
+    valid_path = pm.make_valid_path()
+
+toy()

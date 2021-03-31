@@ -2,7 +2,6 @@
 import numpy as np
 import random
 from typing import List
-import pathmaker
 import environment
 
 
@@ -72,9 +71,9 @@ def test_set_holes():
 # -------------------------------------------------------
 
 def init_env():
-    env = environment.Env(grid_shape=(50,50), n_goals=10, 
+    env = environment.Env(grid_shape=(10,10), n_goals=2, 
                                   hole_pct = 0.5)
-    pm = pathmaker.PathMaker(env)
+    pm = environment.PathMaker(env)
     return env, pm
 
 def test_generate_shifted_spots():
@@ -147,5 +146,5 @@ def run_all_tests(verbose = True):
     print("\nAll tests passed." if verbose else "")
  
 if __name__ == "__main__":
-    for _ in range(10):
+    for _ in range(100):
         run_all_tests()
