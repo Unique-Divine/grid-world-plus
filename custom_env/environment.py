@@ -106,15 +106,12 @@ class Env:
 
     @property
     def position_space(self) -> List[List[int]]:
-        try:
-            return self.position_space
-        except:
-            row_dim, col_dim = self.grid.shape
-            position_space: List[list] = []
-            for i in range(row_dim):
-                for j in range(col_dim):
-                    position_space.append([i, j])
-            return position_space
+        row_dim, col_dim = self.grid.shape
+        position_space: List[list] = []
+        for i in range(row_dim):
+            for j in range(col_dim):
+                position_space.append([i, j])
+        return position_space
     
     @position_space.deleter
     def position_space(self):
