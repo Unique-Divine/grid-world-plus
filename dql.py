@@ -4,15 +4,11 @@ import gym
 import sys
 import os
 
-import DQN
-from DQN.q_network import Q
-from DQN.tools import epsilon, run_target_update, plot_episode_rewards, ReplayBuffer
+from models.DQN.q_network import Q
+from models.DQN.tools import epsilon, run_target_update, plot_episode_rewards, ReplayBuffer
+from custom_env import environment
 
-
-parent = os.getcwd().rsplit("/", 1)[0]
-sys.path.append(os.path.abspath(os.path.join(parent, "custom_env")))
-import custom_env
-import environment
+breakpoint()
 
 # buffer hyperparameters
 batchsize = 200  # batchsize for buffer sampling

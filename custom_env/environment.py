@@ -3,8 +3,9 @@ import numpy as np
 import sys
 import copy
 import random
+import collections
 import copy
-from typing import List, Union, Generator
+from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")
 import gym.utils
@@ -230,6 +231,13 @@ class Env:
             self.create()
             assert self.env_start != None
         # TODO Test that this works as intended 
+    
+    def step(self, agent) -> NamedTuple:
+        action = None
+        collections.namedtuple(
+            "Step", ["observation", "okok"]
+        )
+        return None# TODO
         
 class PathMaker:
     def __init__(self, env: Env) -> None:
@@ -502,7 +510,7 @@ class PathMaker:
                 path_a += path_g[::-1]
                 done = True
                 try:
-                     assert [path_a[0], path_a[-1]] == [agent_position, goal_position] 
+                    assert [path_a[0], path_a[-1]] == [agent_position, goal_position] 
                 except:
                     print('case 2')
                     breakpoint()
@@ -520,10 +528,6 @@ class PathMaker:
         # 2. Verify that the shifts between each position in the path are <= 1.
         valid_path: List[List[int]] = path_a
         return valid_path
-
-    # ----------------------
-    # Valid path generation:
-    # ----------------------
 
 class Agent:
     def __init__(self, sight_distance) -> None:
@@ -555,7 +559,6 @@ class State:
         self.center_abs: Point = Point(env.agent_position)
         self._center: Point = self.center
         self._sight: np.ndarray = self.sight
-        
         pass
     
     @property
@@ -582,13 +585,8 @@ class State:
                     sight[rel_row, rel_col] = self.env.interactables['blocked']
         return sight
 
-    
-        
     def __repr__(self):
         return f"{self.env.render_as_char(self.sight)}"
-
-
-
 
 def toy():
     def init_env():
@@ -596,12 +594,11 @@ def toy():
                                     hole_pct = 0.5)
         pm = PathMaker(env)
         return env, pm
+
     env, pm = init_env()
     env.reset()
 
-    g = env.grid
-
-    Alex = Agent(5)
+    Alex = Agent(2)
     s0 = State(env, Alex)
 
     p1  = Point(1, 2)
