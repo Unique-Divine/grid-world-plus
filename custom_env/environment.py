@@ -529,7 +529,8 @@ class PathMaker:
 class Agent:
     def __init__(self, sight_distance) -> None:
         self._sight_distance: int = sight_distance
-        self.policy = None # TODO
+        self.policy = None  # TODO
+
         pass
 
     @property
@@ -604,7 +605,7 @@ def toy():
     breakpoint()
     print('code')
 
-toy()
+# toy()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
