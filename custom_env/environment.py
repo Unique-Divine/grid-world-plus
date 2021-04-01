@@ -60,13 +60,14 @@ class Env:
     >>> from agent import Agent
     >>> env = Env() # initializes an environment
     >>> env.reset() # creates or resets the environment
-    >>> james = Agent(4)
+    >>> james_bond = Agent(4)
     # An episode could then look like:
     ```
+    done = False
     while done!= True:  
-        s = State(env, james) # the state of James in the environment
+        s = State(env, james_bond) # the state of Bond in the environment
         random_action = random.randrange(8)
-        step = env.step(action_idx = random_action, s)
+        step = env.step(action_idx = random_action, state = s)
         observation, reward, done, info = step
     replay_buffer.append( ... )
     ```
@@ -91,6 +92,7 @@ class Env:
 
         # Initial grid - for env.reset()
         self.agent_start: List[int] = None
+        self.valid_path: List[List[int]]
         self.env_start = None
 
         # Declare board paramteres as class attributes
@@ -211,6 +213,7 @@ class Env:
             n_goals = env.n_goals
         )
         self.env_start.grid = env.grid
+        self.env_start.agent_start = self.agent_position
         self.env_start.open_positions = env.open_positions
         self.env_start.env_start = self.env_start
         assert self.env_start != None
@@ -225,6 +228,7 @@ class Env:
         
         # Clear a path for the agent
         valid_path = PathMaker(self).make_valid_path()
+        self.valid_path = valid_path
         for position in valid_path:
             if position in self.open_positions:
                 self.open_positions.remove(position)
@@ -643,26 +647,44 @@ class State:
     def __repr__(self):
         return f"{self.env.render_as_char(self.observation)}"
 
-def toy():
+def toy_test():
     def init_env():
         env = Env(grid_shape=(10,10), n_goals=2, 
-                                    hole_pct = 0.5)
+                                    hole_pct = 0.8)
         pm = PathMaker(env)
         return env, pm
 
     env, pm = init_env()
-    env.reset()
+    james_bond = Agent(4)
 
-    Alex = Agent(2)
-    s0 = State(env, Alex)
+    env.create()
+    num_episodes = 20
+    episodes = []
+    for _ in range(num_episodes): 
+        env.reset()
+        ep_steps = []
+        scene_idx = 0 
+        done = False
+        while done != True:
+            state = State(env, james_bond)
+            step_from_s = env.step(action_idx = random.randrange(8), 
+                                   state = state)
+            observation, reward, done, info = step_from_s
+            ep_steps.append(step_from_s)
+            
+            if scene_idx >= 10:
+                assert len(ep_steps) == 11
+                break   
+            scene_idx += 1 
 
-    p1  = Point(1, 2)
-    p2 = Point([1, 3])
-
-    breakpoint()
+        assert (done == True) or len(ep_steps) == 11
+        episodes.append(ep_steps)
+        print(f'Episode {_} complete.')
+        # breakpoint()
     print('code')
+    breakpoint()
 
-toy()
+toy_test()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
