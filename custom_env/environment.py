@@ -103,8 +103,26 @@ class Env:
 
     def __repr__(self) -> str:
         return f"Env:\n{self.render_as_char(self.grid)}"
+
     def __str__(self) -> str:
         return str(self.grid)
+
+    def __eq__(self, other) -> bool:
+        if other == None:
+            return False
+        elif isinstance(other, Env):
+            checks = [
+                np.all(self.grid == other.grid), 
+                self.agent_start == other.agent_start, 
+                self.env_start ==  other.env_start,
+                self.open_positions == other.open_positions,
+                self.valid_path == other.valid_path,
+                self.n_goals == other.n_goals,
+                self.hole_pct == other.hole_pct, 
+            ]
+        else:
+            raise ValueError(f"{other} must be an environment instance.")
+        return np.all(checks)
 
     def render(self):
         raise NotImplementedError
@@ -684,7 +702,7 @@ def toy_test():
     print('code')
     breakpoint()
 
-toy_test()
+# toy_test()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
