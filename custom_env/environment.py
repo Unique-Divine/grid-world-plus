@@ -65,6 +65,7 @@ class Env:
         assert self.grid.shape == grid_shape
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
+        self.action_space: List[Point] = self.get_action_space()
         self.open_positions: List[list] = self._position_space
         self._agent_position: List[int] = self.agent_position 
         self.goal_position: List[int] = None
@@ -103,6 +104,11 @@ class Env:
     # --------------------------------------------------------------------
     # Properties 
     # --------------------------------------------------------------------
+    def get_action_space(self) -> List[Point]:
+        action_space: List[list] = [[-1, 1], [-1, 0], [-1, -1], [0, -1],
+                                    [1, -1], [1, 0], [1, 1], [0, 1]]
+        action_space: List[Point] = [Point(p) for p in action_space]
+        return action_space
 
     @property
     def position_space(self) -> List[List[int]]:
@@ -229,10 +235,52 @@ class Env:
             assert self.env_start != None
         # TODO Test that this works as intended 
     
-    def step(self, agent) -> NamedTuple:
-        action = None
+    def step(self, action_idx, state) -> NamedTuple:
+        action: Point = self.action_space[action_idx]
+        desired_position: Point = state.center + action
+        new_x, new_y = desired_position
+        interactable: int = state.observation[new_x, new_y]
+        
+
+        def move():
+            x, y = self.agent_position
+            new_x, new_y = Point(self.agent_position) + action
+            self.grid[x, y] = self.interactables['frozen']
+            self.grid[new_x, new_y] = self.interactables['agent']
+        def unable_to_move():
+            pass
+
+        if interactable == self.interactables['frozen']:
+            move()
+            reward = 0 
+            done = False
+        elif interactable == self.interactables['hole']:
+            move()
+            reward = -1
+            done = True
+        elif interactable == self.interactables['goal']:
+            move()
+            reward = 1
+            done = True
+        elif interactable == self.interactables['blocked']:
+            unable_to_move()
+            reward = 0
+            done = False
+        elif interactable == self.interactables['agent']:
+            raise NotImplementedError("There shouldn't be two agents yet.")
+            # TODO
+        else:
+            raise ValueError(f"interactable: '{interactable}' is not in "
+                +f"interactables: {self.interactables}")
+        
+
+
+        observation: State
+        reward: float
+        done: bool 
+        info: str = ""
         collections.namedtuple(
-            "Step", ["observation", "okok"]
+            "Step", ["observation", "reward", "done", "info"]
         )
         return None# TODO
         
@@ -555,7 +603,7 @@ class State:
         self.agent: Agent = agent
         self.center_abs: Point = Point(env.agent_position)
         self._center: Point = self.center
-        self._sight: np.ndarray = self.sight
+        self._observation: np.ndarray = self.observation
         pass
     
     @property
@@ -563,27 +611,33 @@ class State:
         return Point([self.agent.sight_distance] * 2)
     
     @property 
-    def sight(self) -> np.ndarray:
+    def observation(self) -> np.ndarray:
         sd: int = self.agent.sight_distance
         center_abs: Point = self.center_abs
-        sight = np.empty(
+        observation = np.empty(
             shape= [self.agent.sight_distance * 2 + 1] * 2, 
             dtype = np.int16)
         row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
         col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
-        for row_idx in row_view:
-            for col_idx in col_view:
-                displacement = Point(row_idx, col_idx) - center_abs
-                relative_position: Point = self.center + displacement
-                rel_row, rel_col = relative_position
-                if [row_idx, col_idx] in self.env.position_space:
-                    sight[rel_row, rel_col] = self.env.grid[row_idx, col_idx]
-                else:
-                    sight[rel_row, rel_col] = self.env.interactables['blocked']
-        return sight
+        def views(row_view, col_view) -> Generator:
+            for row_idx in row_view:
+                for col_idx in col_view:
+                    displacement = Point(row_idx, col_idx) - center_abs
+                    relative_position: Point = self.center + displacement
+                    rel_row, rel_col = relative_position
+                    yield row_idx, col_idx, rel_row, rel_col
+        
+        for view in views(row_view, col_view):
+            row_idx, col_idx, rel_row, rel_col = view 
+            if [row_idx, col_idx] in self.env.position_space:
+                observation[rel_row, rel_col] = self.env.grid[row_idx, col_idx]
+            else:
+                observation[rel_row, rel_col] = self.env.interactables[
+                    'blocked']
+        return observation
 
     def __repr__(self):
-        return f"{self.env.render_as_char(self.sight)}"
+        return f"{self.env.render_as_char(self.observation)}"
 
 def toy():
     def init_env():
