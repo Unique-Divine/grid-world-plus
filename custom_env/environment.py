@@ -5,6 +5,7 @@ import copy
 import random
 import collections
 import copy
+from agent import Agent
 from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")
@@ -36,7 +37,9 @@ class Point(np.ndarray):
 
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
-    a varying starting position for the agent.
+    a varying starting position for the agent, holes, and goal(s). Movements are
+    deterministic rather than stochastic and each environment is solvable, so a
+    'perfect' agent can get reward 1 on every episode.
     
     Args:
         grid_shape (list-like): The matrix dimensions of the environment. 
@@ -51,6 +54,22 @@ class Env:
             holes, etc. The 'blocked' key refers to spaces that can't 
             be traversed.
         grid (np.ndarray): A matrix with the encodings for each interactable. 
+
+    Examples:
+    ---------
+    >>> from agent import Agent
+    >>> env = Env() # initializes an environment
+    >>> env.reset() # creates or resets the environment
+    >>> james = Agent(4)
+    # An episode could then look like:
+    ```
+    while done!= True:  
+        s = State(env, james) # the state of James in the environment
+        random_action = random.randrange(8)
+        step = env.step(action_idx = random_action, s)
+        observation, reward, done, info = step
+    replay_buffer.append( ... )
+    ```
     """
     def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
         self.interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
@@ -235,13 +254,12 @@ class Env:
             assert self.env_start != None
         # TODO Test that this works as intended 
     
-    def step(self, action_idx, state) -> NamedTuple:
+    def step(self, action_idx: int, state) -> NamedTuple:
         action: Point = self.action_space[action_idx]
         desired_position: Point = state.center + action
         new_x, new_y = desired_position
         interactable: int = state.observation[new_x, new_y]
         
-
         def move():
             x, y = self.agent_position
             new_x, new_y = Point(self.agent_position) + action
@@ -250,6 +268,11 @@ class Env:
         def unable_to_move():
             pass
 
+        observation: np.ndarray
+        reward: float
+        done: bool 
+        info: str
+        
         if interactable == self.interactables['frozen']:
             move()
             reward = 0 
@@ -273,16 +296,11 @@ class Env:
             raise ValueError(f"interactable: '{interactable}' is not in "
                 +f"interactables: {self.interactables}")
         
-
-
-        observation: State
-        reward: float
-        done: bool 
-        info: str = ""
-        collections.namedtuple(
-            "Step", ["observation", "reward", "done", "info"]
-        )
-        return None# TODO
+        observation = State(self, state.agent).observation 
+        info = ""
+        Step = collections.namedtuple(
+            "Step", ["observation", "reward", "done", "info"])
+        return Step(observation, reward, done, info)
         
 class PathMaker:
     def __init__(self, env: Env) -> None:
@@ -574,19 +592,6 @@ class PathMaker:
         valid_path: List[List[int]] = path_a
         return valid_path
 
-class Agent:
-    def __init__(self, sight_distance) -> None:
-        self._sight_distance: int = sight_distance
-        self.policy = None # TODO
-        pass
-
-    @property
-    def sight_distance(self) -> int:
-        return self._sight_distance
-    
-    # def __repr__(self):
-        # return self.__class__.__name__
-
 class State:
     """[summary]
     
@@ -599,12 +604,11 @@ class State:
         center (Point): The agent's position on the current sight window.
     """
     def __init__(self, env: Env, agent: Agent) -> None:
-        self.env: Env = env
+        self.env = env
         self.agent: Agent = agent
-        self.center_abs: Point = Point(env.agent_position)
         self._center: Point = self.center
+        self.center_abs: Point = Point(env.agent_position)
         self._observation: np.ndarray = self.observation
-        pass
     
     @property
     def center(self) -> Point:
