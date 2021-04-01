@@ -2,8 +2,21 @@
 import numpy as np
 import random
 from typing import List
+from agent import Agent
 import environment
 
+
+
+def init_env():
+    """Helper function for setting up a random environments for tests. 
+    Returns:
+        env: An empty environment without any agents, goals, or holes. 
+        pm: An instance of the Pathmaker class.  
+    """
+    env = environment.Env(grid_shape=(10,10), n_goals=2, 
+                                  hole_pct = 0.5)
+    pm = environment.PathMaker(env)
+    return env, pm
 
 # -------------------------------------------------------
 # envrionment.py tests
@@ -66,15 +79,26 @@ def test_set_holes():
     assert n_holes == expected_n_holes, \
         "Mistakes were made in 'env.set_holes()'"
 
+def test_step():
+    env: environment.Env = init_env()[0]
+    env.reset()
+
+    james_bond = Agent(4)
+
+    done = False
+    steps = []
+    # while done != True:
+    for _ in range(5):
+        s = environment.State(env, james_bond)
+        step = env.step(action_idx = 0, state = s)
+        steps.append(step)
+    breakpoint()
+        
+
+
 # -------------------------------------------------------
 # pathmaker.py tests
 # -------------------------------------------------------
-
-def init_env():
-    env = environment.Env(grid_shape=(10,10), n_goals=2, 
-                                  hole_pct = 0.5)
-    pm = environment.PathMaker(env)
-    return env, pm
 
 def test_generate_shifted_spots():
     env, pm = init_env()
@@ -146,5 +170,6 @@ def run_all_tests(verbose = True):
     print("\nAll tests passed." if verbose else "")
  
 if __name__ == "__main__":
-    for _ in range(100):
-        run_all_tests()
+    # for _ in range(100):
+    #     run_all_tests()
+    test_step()

@@ -5,6 +5,7 @@ import copy
 import random
 import collections
 import copy
+from agent import Agent
 from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")
@@ -36,7 +37,9 @@ class Point(np.ndarray):
 
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
-    a varying starting position for the agent.
+    a varying starting position for the agent, holes, and goal(s). Movements are
+    deterministic rather than stochastic and each environment is solvable, so a
+    'perfect' agent can get reward 1 on every episode.
     
     Args:
         grid_shape (list-like): The matrix dimensions of the environment. 
@@ -51,6 +54,23 @@ class Env:
             holes, etc. The 'blocked' key refers to spaces that can't 
             be traversed.
         grid (np.ndarray): A matrix with the encodings for each interactable. 
+
+    Examples:
+    ---------
+    >>> from agent import Agent
+    >>> env = Env() # initializes an environment
+    >>> env.reset() # creates or resets the environment
+    >>> james_bond = Agent(4)
+    # An episode could then look like:
+    ```
+    done = False
+    while done!= True:  
+        s = State(env, james_bond) # the state of Bond in the environment
+        random_action = random.randrange(8)
+        step = env.step(action_idx = random_action, state = s)
+        observation, reward, done, info = step
+    replay_buffer.append( ... )
+    ```
     """
     def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
         self.interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
@@ -65,12 +85,14 @@ class Env:
         assert self.grid.shape == grid_shape
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
+        self.action_space: List[Point] = self.get_action_space()
         self.open_positions: List[list] = self._position_space
         self._agent_position: List[int] = self.agent_position 
         self.goal_position: List[int] = None
 
         # Initial grid - for env.reset()
         self.agent_start: List[int] = None
+        self.valid_path: List[List[int]]
         self.env_start = None
 
         # Declare board paramteres as class attributes
@@ -103,6 +125,11 @@ class Env:
     # --------------------------------------------------------------------
     # Properties 
     # --------------------------------------------------------------------
+    def get_action_space(self) -> List[Point]:
+        action_space: List[list] = [[-1, 1], [-1, 0], [-1, -1], [0, -1],
+                                    [1, -1], [1, 0], [1, 1], [0, 1]]
+        action_space: List[Point] = [Point(p) for p in action_space]
+        return action_space
 
     @property
     def position_space(self) -> List[List[int]]:
@@ -186,6 +213,7 @@ class Env:
             n_goals = env.n_goals
         )
         self.env_start.grid = env.grid
+        self.env_start.agent_start = self.agent_position
         self.env_start.open_positions = env.open_positions
         self.env_start.env_start = self.env_start
         assert self.env_start != None
@@ -200,6 +228,7 @@ class Env:
         
         # Clear a path for the agent
         valid_path = PathMaker(self).make_valid_path()
+        self.valid_path = valid_path
         for position in valid_path:
             if position in self.open_positions:
                 self.open_positions.remove(position)
@@ -229,12 +258,53 @@ class Env:
             assert self.env_start != None
         # TODO Test that this works as intended 
     
-    def step(self, agent) -> NamedTuple:
-        action = None
-        collections.namedtuple(
-            "Step", ["observation", "okok"]
-        )
-        return None# TODO
+    def step(self, action_idx: int, state) -> NamedTuple:
+        action: Point = self.action_space[action_idx]
+        desired_position: Point = state.center + action
+        new_x, new_y = desired_position
+        interactable: int = state.observation[new_x, new_y]
+        
+        def move():
+            x, y = self.agent_position
+            new_x, new_y = Point(self.agent_position) + action
+            self.grid[x, y] = self.interactables['frozen']
+            self.grid[new_x, new_y] = self.interactables['agent']
+        def unable_to_move():
+            pass
+
+        observation: np.ndarray
+        reward: float
+        done: bool 
+        info: str
+        
+        if interactable == self.interactables['frozen']:
+            move()
+            reward = 0 
+            done = False
+        elif interactable == self.interactables['hole']:
+            move()
+            reward = -1
+            done = True
+        elif interactable == self.interactables['goal']:
+            move()
+            reward = 1
+            done = True
+        elif interactable == self.interactables['blocked']:
+            unable_to_move()
+            reward = 0
+            done = False
+        elif interactable == self.interactables['agent']:
+            raise NotImplementedError("There shouldn't be two agents yet.")
+            # TODO
+        else:
+            raise ValueError(f"interactable: '{interactable}' is not in "
+                +f"interactables: {self.interactables}")
+        
+        observation = State(self, state.agent).observation 
+        info = ""
+        Step = collections.namedtuple(
+            "Step", ["observation", "reward", "done", "info"])
+        return Step(observation, reward, done, info)
         
 class PathMaker:
     def __init__(self, env: Env) -> None:
@@ -526,20 +596,6 @@ class PathMaker:
         valid_path: List[List[int]] = path_a
         return valid_path
 
-class Agent:
-    def __init__(self, sight_distance) -> None:
-        self._sight_distance: int = sight_distance
-        self.policy = None  # TODO
-
-        pass
-
-    @property
-    def sight_distance(self) -> int:
-        return self._sight_distance
-    
-    # def __repr__(self):
-        # return self.__class__.__name__
-
 class State:
     """[summary]
     
@@ -552,60 +608,83 @@ class State:
         center (Point): The agent's position on the current sight window.
     """
     def __init__(self, env: Env, agent: Agent) -> None:
-        self.env: Env = env
+        self.env = env
         self.agent: Agent = agent
-        self.center_abs: Point = Point(env.agent_position)
         self._center: Point = self.center
-        self._sight: np.ndarray = self.sight
-        pass
+        self.center_abs: Point = Point(env.agent_position)
+        self._observation: np.ndarray = self.observation
     
     @property
     def center(self) -> Point:
         return Point([self.agent.sight_distance] * 2)
     
     @property 
-    def sight(self) -> np.ndarray:
+    def observation(self) -> np.ndarray:
         sd: int = self.agent.sight_distance
         center_abs: Point = self.center_abs
-        sight = np.empty(
+        observation = np.empty(
             shape= [self.agent.sight_distance * 2 + 1] * 2, 
             dtype = np.int16)
         row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
         col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
-        for row_idx in row_view:
-            for col_idx in col_view:
-                displacement = Point(row_idx, col_idx) - center_abs
-                relative_position: Point = self.center + displacement
-                rel_row, rel_col = relative_position
-                if [row_idx, col_idx] in self.env.position_space:
-                    sight[rel_row, rel_col] = self.env.grid[row_idx, col_idx]
-                else:
-                    sight[rel_row, rel_col] = self.env.interactables['blocked']
-        return sight
+        def views(row_view, col_view) -> Generator:
+            for row_idx in row_view:
+                for col_idx in col_view:
+                    displacement = Point(row_idx, col_idx) - center_abs
+                    relative_position: Point = self.center + displacement
+                    rel_row, rel_col = relative_position
+                    yield row_idx, col_idx, rel_row, rel_col
+        
+        for view in views(row_view, col_view):
+            row_idx, col_idx, rel_row, rel_col = view 
+            if [row_idx, col_idx] in self.env.position_space:
+                observation[rel_row, rel_col] = self.env.grid[row_idx, col_idx]
+            else:
+                observation[rel_row, rel_col] = self.env.interactables[
+                    'blocked']
+        return observation
 
     def __repr__(self):
-        return f"{self.env.render_as_char(self.sight)}"
+        return f"{self.env.render_as_char(self.observation)}"
 
-def toy():
+def toy_test():
     def init_env():
         env = Env(grid_shape=(10,10), n_goals=2, 
-                                    hole_pct = 0.5)
+                                    hole_pct = 0.8)
         pm = PathMaker(env)
         return env, pm
 
     env, pm = init_env()
-    env.reset()
+    james_bond = Agent(4)
 
-    Alex = Agent(2)
-    s0 = State(env, Alex)
+    env.create()
+    num_episodes = 20
+    episodes = []
+    for _ in range(num_episodes): 
+        env.reset()
+        ep_steps = []
+        scene_idx = 0 
+        done = False
+        while done != True:
+            state = State(env, james_bond)
+            step_from_s = env.step(action_idx = random.randrange(8), 
+                                   state = state)
+            observation, reward, done, info = step_from_s
+            ep_steps.append(step_from_s)
+            
+            if scene_idx >= 10:
+                assert len(ep_steps) == 11
+                break   
+            scene_idx += 1 
 
-    p1  = Point(1, 2)
-    p2 = Point([1, 3])
-
-    breakpoint()
+        assert (done == True) or len(ep_steps) == 11
+        episodes.append(ep_steps)
+        print(f'Episode {_} complete.')
+        # breakpoint()
     print('code')
+    breakpoint()
 
-# toy()
+toy_test()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
