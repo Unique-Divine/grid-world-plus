@@ -1,4 +1,5 @@
 #%%
+from os import environ
 import numpy as np
 import sys
 import copy
@@ -114,7 +115,6 @@ class Env:
             checks = [
                 np.all(self.grid == other.grid), 
                 self.agent_start == other.agent_start, 
-                self.env_start ==  other.env_start,
                 self.open_positions == other.open_positions,
                 self.valid_path == other.valid_path,
                 self.n_goals == other.n_goals,
@@ -233,6 +233,7 @@ class Env:
         self.env_start.grid = env.grid
         self.env_start.agent_start = self.agent_position
         self.env_start.open_positions = env.open_positions
+        self.env_start.valid_path = self.valid_path
         self.env_start.env_start = self.env_start
         assert self.env_start != None
 
@@ -240,24 +241,54 @@ class Env:
     # Functions for the user
     # --------------------------------------------------------------------
 
-    def create(self):
-        """Place all of the interactables on the grid to create a new env."""
-        self.set_agent_goal() # Create agent and goals
+    def create_new(self):
+        """Place all of the interactables on the grid to create a new env. 
+        Changes the 'env.env_start' attribute, the environment you reset to
+        when calling 'env.reset'. 
         
-        # Clear a path for the agent
-        valid_path = PathMaker(self).make_valid_path()
-        self.valid_path = valid_path
-        for position in valid_path:
-            if position in self.open_positions:
-                self.open_positions.remove(position)
-        
-        # Place holes in some of the empty spaces
-        self.set_holes()
+        Examples:
+        --------
+        >>> env0 = Env()
+        >>> env0.reset() # Initializes board with interactable env objects.
+        You can also call 'env0.create_new()' instead of 'env0.reset()'
+        >>> env1 = env0.create_new() # randomly generate new env
+        """
+        def setup_blank_env(env):
+            env.set_agent_goal() # Create agent and goals        
+            # Clear a path for the agent
+            valid_path = PathMaker(env).make_valid_path()
+            env.valid_path = valid_path
+            for position in valid_path:
+                if position in env.open_positions:
+                    env.open_positions.remove(position)
+            # Place holes in some of the empty spaces
+            env.set_holes()
         
         # Save initial state if this is the first time create() has been called.
         if self.env_start == None:
+            setup_blank_env(env = self)
             self.set_env_start(env = self)
-
+        else:
+            # Create new, blank environment
+            new_env = Env(grid_shape = self.grid.shape,
+                          hole_pct = self.hole_pct,
+                          n_goals = self.n_goals)
+            assert new_env.env_start == None
+            any_holes: bool = lambda grid: np.any(
+                grid == self.interactables['hole'])
+            assert any_holes(new_env.grid) == False, (
+                "The 'new_env' should start out frozen after initialization.")
+            
+            # Place agent, goal(s), and holes on the grid. 
+            setup_blank_env(env = new_env)
+            assert any_holes(new_env.grid) == True
+            
+            # Set 'new_env' as the 'env_start' attribute.
+            self.set_env_start(env = new_env)
+            assert self.env_start != None
+            # Reset to 'env_start'
+            self.reset()  
+            return new_env
 
         # TODO: Check that there are holes on the grid.
         # TODO: Check that none of the positions in valid path now have holes.
@@ -271,9 +302,12 @@ class Env:
         if self.env_start != None:
             return self.env_start
 
-        elif self.env_start == None:
-            self.create()
+        else:
+            self.env_start == None
+            self.create_new()
             assert self.env_start != None
+
+        return self.env_start
         # TODO Test that this works as intended 
     
     def step(self, action_idx: int, state) -> NamedTuple:
@@ -675,11 +709,17 @@ def toy_test():
     env, pm = init_env()
     james_bond = Agent(4)
 
-    env.create()
+    env.create_new()
+    
+    try:
+        env.env_start == env
+    except:
+        breakpoint()
+
     num_episodes = 20
     episodes = []
     for _ in range(num_episodes): 
-        env.reset()
+        env = env.reset()
         ep_steps = []
         scene_idx = 0 
         done = False
@@ -699,10 +739,11 @@ def toy_test():
         episodes.append(ep_steps)
         print(f'Episode {_} complete.')
         # breakpoint()
+    
     print('code')
     breakpoint()
 
-# toy_test()
+toy_test()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
