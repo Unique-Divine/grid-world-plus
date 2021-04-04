@@ -288,8 +288,8 @@ class Env:
             assert self.env_start != None
             
             # Reset to this new environment
-            self.env_start = new_env.grid
-            self.grid = self.env_start
+            self.env_start = copy.deepcopy(new_env.grid)
+            self.grid = copy.deepcopy(self.env_start)
 
         # TODO: Check that there are holes on the grid.
         # TODO: Check that none of the positions in valid path now have holes.
@@ -303,7 +303,7 @@ class Env:
             Env: The initial environment.
         """        
         if isinstance(self.env_start, np.ndarray):
-            self.grid = self.env_start
+            self.grid = copy.deepcopy(self.env_start)
         elif isinstance(self.env_start, None):
             self.create_new()
         else:
@@ -710,7 +710,7 @@ def toy_test():
 
     env.create_new()
     
-    num_episodes = 10
+    num_episodes = 20
     MAX_SCENE_IDX = 12
     episodes = []      
 
@@ -742,10 +742,9 @@ def toy_test():
         print(f'Episode {_} complete.')
     
     print([e[-1].reward for e in episodes])
-
     print('\ncode\n')
 
-toy_test()
+# toy_test()
 
 # Useful implementation links: 
 # https://en.wikipedia.org/wiki/Depth-first_search
