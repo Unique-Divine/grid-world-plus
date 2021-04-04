@@ -2,7 +2,7 @@ import torch
 
 
 class Q:
-    def __init__(self, state_dim, action_dim, lr, hidden_dim=60):
+    def __init__(self, state_dim, action_dim, lr, hidden_dim=15):
         self.model = torch.nn.Sequential(
             torch.nn.Linear(state_dim, hidden_dim),
             torch.nn.ReLU(),
