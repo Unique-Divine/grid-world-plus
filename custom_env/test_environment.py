@@ -139,24 +139,25 @@ def test_create_reset():
     assert env.env_start == None, "'env_start' attribute should init to None."
 
     # Fresh env
-    env.create()
+    env.create_new()
     assert env.env_start != None
-    assert np.all(env.grid == env.env_start.grid), \
+    assert np.all(env.grid == env.env_start), \
         "'env' should be the intial env after first call of 'env.create()'"
 
     # After a reset
-    env = env.reset()  
+    env.reset()  
     assert env.env_start != None
-    assert np.all(env.grid == env.env_start.grid), \
-        "After a reset, 'env' and 'env.env_start' should match"
+    assert np.all(env.grid == env.env_start), \
+        "After a reset, 'env.grid' and 'env.env_start' should match"
 
     # After another create, 'env' and 'env.env_start' are probably different,
-    env.create()
+    env.create_new()
     assert env.env_start != None
     env = env.reset() # but now they should match again.
-    assert np.all(env.grid == env.env_start.grid), \
-        "After a reset, 'env' and 'env.env_start' should match"
+    assert np.all(env.grid == env.env_start), \
+        "After a reset, 'env.grid' and 'env.env_start' should match"
     
+
 def run_all_tests(verbose = True):
     tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
              test_random_walk, test_shortest_path, test_make_valid_path,
