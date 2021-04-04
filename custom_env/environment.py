@@ -94,7 +94,7 @@ class Env:
         # Initial grid - for env.reset()
         self.agent_start: List[int] = None
         self.valid_path: List[List[int]]
-        self.env_start = None
+        self._env_start: np.ndarray = None
 
         # Declare board paramteres as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
@@ -109,20 +109,20 @@ class Env:
         return str(self.grid)
 
     def __eq__(self, other) -> bool:
-        if other == None:
-            return False
+        checks: bool
+        if isinstance(other, np.ndarray):
+            checks = np.all(self.grid == other)
         elif isinstance(other, Env):
-            checks = [
+            checks = np.all([
                 np.all(self.grid == other.grid), 
                 self.agent_start == other.agent_start, 
                 self.open_positions == other.open_positions,
                 self.valid_path == other.valid_path,
                 self.n_goals == other.n_goals,
-                self.hole_pct == other.hole_pct, 
-            ]
+                self.hole_pct == other.hole_pct, ])
         else:
             raise ValueError(f"{other} must be an environment instance.")
-        return np.all(checks)
+        return checks
 
     def render(self):
         raise NotImplementedError
@@ -170,6 +170,16 @@ class Env:
             return np.argwhere(is_agent)[0].tolist() 
         else:
             return None
+
+    @property
+    def env_start(self):
+        return self._env_start
+    @env_start.setter
+    def env_start(self, grid):
+        self._env_start = grid
+    @env_start.deleter
+    def env_start(self):
+        self._env_start = None
 
     # --------------------------------------------------------------------
     # Helper functions for creating an env from scratch
@@ -224,18 +234,7 @@ class Env:
             x, y = hole_position
             self.grid[x, y] = self.interactables['hole']
 
-    def set_env_start(self, env):
-        self.env_start = Env(
-            grid_shape = env.grid.shape,
-            hole_pct = self.hole_pct,
-            n_goals = env.n_goals
-        )
-        self.env_start.grid = env.grid
-        self.env_start.agent_start = self.agent_position
-        self.env_start.open_positions = env.open_positions
-        self.env_start.valid_path = self.valid_path
-        self.env_start.env_start = self.env_start
-        assert self.env_start != None
+
 
     # --------------------------------------------------------------------
     # Functions for the user
@@ -253,6 +252,7 @@ class Env:
         You can also call 'env0.create_new()' instead of 'env0.reset()'
         >>> env1 = env0.create_new() # randomly generate new env
         """
+
         def setup_blank_env(env):
             env.set_agent_goal() # Create agent and goals        
             # Clear a path for the agent
@@ -267,8 +267,8 @@ class Env:
         # Save initial state if this is the first time create() has been called.
         if self.env_start == None:
             setup_blank_env(env = self)
-            self.set_env_start(env = self)
-        else:
+            self.env_start: np.ndarray = self.grid
+        else: # Make a new environment and save that as the initial state.
             # Create new, blank environment
             new_env = Env(grid_shape = self.grid.shape,
                           hole_pct = self.hole_pct,
@@ -279,37 +279,36 @@ class Env:
             assert any_holes(new_env.grid) == False, (
                 "The 'new_env' should start out frozen after initialization.")
             
-            # Place agent, goal(s), and holes on the grid. 
+            # Place agent, goal(s), and holes on 'new_env'. 
             setup_blank_env(env = new_env)
             assert any_holes(new_env.grid) == True
             
-            # Set 'new_env' as the 'env_start' attribute.
-            self.set_env_start(env = new_env)
+            # Set 'new_env' initial grid state
+            new_env.env_start = new_env.grid
             assert self.env_start != None
-            # Reset to 'env_start'
-            self.reset()  
-            return new_env
+            
+            # Reset to this new environment
+            self.env_start = new_env.grid
+            self.grid = self.env_start
 
         # TODO: Check that there are holes on the grid.
         # TODO: Check that none of the positions in valid path now have holes.
 
     def reset(self):
-        """Returns the initial env if it has been created. 
+        """Resets the environment grid to 'env_start', the initial environment
+        if it has been set. If 'env_start' hasn't been set, this method 
+        randomly generates a new env and declares that to be 'env_start'.  
 
         Returns:
             Env: The initial environment.
         """        
-        if self.env_start != None:
-            return self.env_start
-
-        else:
-            self.env_start == None
+        if isinstance(self.env_start, np.ndarray):
+            self.grid = self.env_start
+        elif isinstance(self.env_start, None):
             self.create_new()
-            assert self.env_start != None
+        else:
+            raise AttributeError("'env_start' must be an ndarray or None.")
 
-        return self.env_start
-        # TODO Test that this works as intended 
-    
     def step(self, action_idx: int, state) -> NamedTuple:
         action: Point = self.action_space[action_idx]
         desired_position: Point = state.center + action
@@ -352,11 +351,11 @@ class Env:
             raise ValueError(f"interactable: '{interactable}' is not in "
                 +f"interactables: {self.interactables}")
         
-        observation = State(self, state.agent).observation 
+        next_observation = State(self, state.agent).observation 
         info = ""
         Step = collections.namedtuple(
-            "Step", ["observation", "reward", "done", "info"])
-        return Step(observation, reward, done, info)
+            "Step", ["next_observation", "reward", "done", "info"])
+        return Step(next_observation, reward, done, info)
         
 class PathMaker:
     def __init__(self, env: Env) -> None:
@@ -701,8 +700,8 @@ class State:
 
 def toy_test():
     def init_env():
-        env = Env(grid_shape=(10,10), n_goals=2, 
-                                    hole_pct = 0.8)
+        env = Env(grid_shape=(3,3), n_goals=8, 
+                                    hole_pct = 0.0)
         pm = PathMaker(env)
         return env, pm
 
@@ -711,37 +710,40 @@ def toy_test():
 
     env.create_new()
     
-    try:
-        env.env_start == env
-    except:
-        breakpoint()
+    num_episodes = 10
+    MAX_SCENE_IDX = 12
+    episodes = []      
 
-    num_episodes = 20
-    episodes = []
     for _ in range(num_episodes): 
-        env = env.reset()
-        ep_steps = []
-        scene_idx = 0 
-        done = False
-        while done != True:
+        env.reset(); print(f'reset | episode {_}')
+        ep_steps: list = []
+        scene_idx: int = 0 
+        done: bool = False
+        while not done:
+            # Start scene
             state = State(env, james_bond)
             step_from_s = env.step(action_idx = random.randrange(8), 
                                    state = state)
             observation, reward, done, info = step_from_s
             ep_steps.append(step_from_s)
-            
-            if scene_idx >= 10:
-                assert len(ep_steps) == 11
+
+            if scene_idx == MAX_SCENE_IDX:
                 break   
             scene_idx += 1 
-
-        assert (done == True) or len(ep_steps) == 11
+        # Episode complete
+        if not done:
+            assert np.all([step.reward == 0 for step in ep_steps])
+        try: 
+            assert (done == True) or (len(ep_steps) == MAX_SCENE_IDX)
+        except:
+            print(f"done: {done}, len(ep_steps): {len(ep_steps)}, "
+                + f"scene: {_}")
         episodes.append(ep_steps)
         print(f'Episode {_} complete.')
-        # breakpoint()
     
-    print('code')
-    breakpoint()
+    print([e[-1].reward for e in episodes])
+
+    print('\ncode\n')
 
 toy_test()
 
