@@ -10,7 +10,6 @@ from agent import Agent
 from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")
-import gym.utils
 
 class Point(np.ndarray):
     """A 1D np.ndarray of size 2 that contains the row and column
@@ -80,10 +79,12 @@ class Env:
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
             raise ValueError("'grid_shape' must be a list-like of length 2.")
-        self.grid = np.full(shape = grid_shape, 
+        self.empty_grid = np.full(shape = grid_shape, 
                             fill_value = self.interactables['frozen'], 
                             dtype = np.int32)
+        self.grid = copy.deepcopy(self.empty_grid)
         assert self.grid.shape == grid_shape
+
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
         self.action_space: List[Point] = self.get_action_space()
@@ -94,7 +95,7 @@ class Env:
         # Initial grid - for env.reset()
         self.agent_start: List[int] = None
         self.valid_path: List[List[int]]
-        self._env_start: np.ndarray = None
+        self._env_start: np.ndarray = copy.deepcopy(self.empty_grid)
 
         # Declare board paramteres as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
@@ -265,7 +266,7 @@ class Env:
             env.set_holes()
         
         # Save initial state if this is the first time create() has been called.
-        if self.env_start == None:
+        if np.all(self.env_start == self.empty_grid):
             setup_blank_env(env = self)
             self.env_start: np.ndarray = self.grid
         else: # Make a new environment and save that as the initial state.
@@ -273,7 +274,7 @@ class Env:
             new_env = Env(grid_shape = self.grid.shape,
                           hole_pct = self.hole_pct,
                           n_goals = self.n_goals)
-            assert new_env.env_start == None
+            assert np.all(new_env.env_start == self.empty_grid)
             any_holes: bool = lambda grid: np.any(
                 grid == self.interactables['hole'])
             assert any_holes(new_env.grid) == False, (
@@ -285,7 +286,7 @@ class Env:
             
             # Set 'new_env' initial grid state
             new_env.env_start = new_env.grid
-            assert self.env_start != None
+            assert np.any(self.env_start != self.empty_grid)
             
             # Reset to this new environment
             self.env_start = copy.deepcopy(new_env.grid)
@@ -697,59 +698,3 @@ class State:
 
     def __repr__(self):
         return f"{self.env.render_as_char(self.observation)}"
-
-def toy_test():
-    def init_env():
-        env = Env(grid_shape=(3,3), n_goals=8, 
-                                    hole_pct = 0.0)
-        pm = PathMaker(env)
-        return env, pm
-
-    env, pm = init_env()
-    james_bond = Agent(4)
-
-    env.create_new()
-    
-    num_episodes = 20
-    MAX_SCENE_IDX = 12
-    episodes = []      
-
-    for _ in range(num_episodes): 
-        env.reset(); print(f'reset | episode {_}')
-        ep_steps: list = []
-        scene_idx: int = 0 
-        done: bool = False
-        while not done:
-            # Start scene
-            state = State(env, james_bond)
-            step_from_s = env.step(action_idx = random.randrange(8), 
-                                   state = state)
-            observation, reward, done, info = step_from_s
-            ep_steps.append(step_from_s)
-
-            if scene_idx == MAX_SCENE_IDX:
-                break   
-            scene_idx += 1 
-        # Episode complete
-        if not done:
-            assert np.all([step.reward == 0 for step in ep_steps])
-        try: 
-            assert (done == True) or (len(ep_steps) == MAX_SCENE_IDX)
-        except:
-            print(f"done: {done}, len(ep_steps): {len(ep_steps)}, "
-                + f"scene: {_}")
-        episodes.append(ep_steps)
-        print(f'Episode {_} complete.')
-    
-    print([e[-1].reward for e in episodes])
-    print('\ncode\n')
-
-# toy_test()
-
-# Useful implementation links: 
-# https://en.wikipedia.org/wiki/Depth-first_search
-# https://docs.python.org/3/library/random.html
-
-# def frozen_lake_original_map():
-#     from gym.envs.toy_text import frozen_lake
-#     print(frozen_lake.generate_random_map())
