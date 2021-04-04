@@ -5,9 +5,6 @@ import random
 import sys
 import os
 import collections
-Experience = collections.namedtuple(
-    "Experience",
-    ["obs", "a", "r", "next_obs", "d"])
 
 from models.DQN.q_network import Q
 from models.DQN.tools import epsilon, run_target_update, plot_episode_rewards, ReplayBuffer
@@ -15,17 +12,16 @@ from models.DQN.tools import epsilon, run_target_update, plot_episode_rewards, R
 from custom_env.agent import Agent
 from custom_env.environment import Env, State, PathMaker
 
-
-
 # buffer hyperparameters
 batchsize = 2  # batchsize for buffer sampling
 buffer_maxlength = 1000  # max number of tuples held by buffer
 episodes_til_buffer_sample = 2
 buffer = ReplayBuffer(buffer_maxlength)  # buffer holds the memories of the exp replay
+Experience = collections.namedtuple("Experience", ["obs", "a", "r", "next_obs", "d"])
 
 # DQL hyperparameters
 steps_til_target_update = 50  # time steps for target update
-num_episodes = 500  # number of episodes to run
+num_episodes = 100  # number of episodes to run
 gamma = .99  # discount
 
 # tracking important things
@@ -33,7 +29,7 @@ list_of_episode_rewards = []  # records the reward per episode
 Qtarget_update_counter = 0  # count the number of steps taken before updating Qtarget
 
 # initialize environment and agent
-env = Env(grid_shape=(5, 5), n_goals=3, hole_pct=0.1)
+env = Env(grid_shape=(3, 3), n_goals=1, hole_pct=0.1)
 james_bond = Agent(4)
 env.create()
 
@@ -65,15 +61,14 @@ for episode in range(num_episodes):
 
         """ better to not save ns, but implement the alg to look ahead """
         ns, r, d, info = env.step(action_idx=a, state=state)  # ns is the new state observation bc of vision window
-        e = Experience(state.observation, a, r, ns, d)
-        # e = (state.observation, a, r, ns, d)  # memory tuple
+        e = Experience(state.observation, a, r, ns, d)  # memory tuple
         buffer.append(e)  # buffer is the experience replay
         while buffer.number > buffer_maxlength:
             buffer.pop()
 
         if scene_number > 25:
             break
-
+        scene_number += 1
         # Training theta by gradients
 
     if episode % episodes_til_buffer_sample == 0 and buffer.number > batchsize:
@@ -103,7 +98,6 @@ for episode in range(num_episodes):
         Qtarget_update_counter += 1
         reward_sum += r
         print(f"episode {episode}")
-
 
     list_of_episode_rewards.append(reward_sum)
 

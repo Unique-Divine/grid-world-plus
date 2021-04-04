@@ -16,14 +16,14 @@ class Actor(object):
         self.state_dim = state_dim
         self.action_dim = action_dim
 
-    def compute_prob(self, states):
+    def action_dist(self, states):
         """
         input: state
         ouput: softmax(nn valuation of each action)
         """
         states = torch.FloatTensor(states)
-        prob = F.softmax(self.model(states), dim=-1)
-        return prob.cpu().data.numpy()
+        dist = Categorical(F.softmax(self.model(states), dim=-1))
+        return dist
 
     def train(self, states, actions, advs):
         states = torch.FloatTensor(states)

@@ -3,6 +3,17 @@ from IPython.display import clear_output
 import matplotlib.pyplot as plt
 
 
+def epsilon(current_episode, num_episodes):
+    """
+    epsilon decays as the current episode gets higher because we want the agent to
+    explore more in earlier episodes (when it hasn't learned anything)
+    explore less in later episodes (when it has learned something)
+    i.e. assume that episode number is directly related to learning
+    """
+    # return 1 - (current_episode/num_episodes)
+    return .5 * .9**current_episode
+
+
 def discounted_reward(r, gamma):
     """ take 1D float array of rewards and compute discounted reward """
     discounted_r = np.zeros_like(r)
