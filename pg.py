@@ -52,7 +52,6 @@ for episode in range(num_episodes):
 
     episode_envs = []
 
-
     while not d:
         state = State(env, james_bond)
         action_dist = policy.action_dist(state.observation.flatten())

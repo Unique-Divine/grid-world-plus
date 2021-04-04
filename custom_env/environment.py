@@ -6,7 +6,7 @@ import copy
 import random
 import collections
 import copy
-from agent import Agent
+from custom_env.agent import Agent
 from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")
@@ -701,7 +701,7 @@ class State:
 
 def toy_test():
     def init_env():
-        env = Env(grid_shape=(10,10), n_goals=2, 
+        env = Env(grid_shape=(10,10), n_goals=2,
                                     hole_pct = 0.8)
         pm = PathMaker(env)
         return env, pm
