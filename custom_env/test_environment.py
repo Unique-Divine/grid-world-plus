@@ -1,11 +1,10 @@
 #%%
 import numpy as np
 import random
+import copy
 from typing import List
 from agent import Agent
 import environment
-
-
 
 def init_env():
     """Helper function for setting up a random environments for tests. 
@@ -93,6 +92,8 @@ def test_step():
         step = env.step(action_idx = 0, state = s)
         steps.append(step)
     breakpoint()
+
+    # TODO: 
         
 # -------------------------------------------------------
 # pathmaker.py tests
@@ -128,39 +129,88 @@ def test_make_valid_path():
     env, pm = init_env()
     env.set_agent_goal()
     valid_path = pm.make_valid_path()
-    try:
-        assert valid_path[0] == env.agent_position
-        assert valid_path[-1] == env.goal_position
-    except:
-        breakpoint()
+    assert valid_path[0] == env.agent_position
+    assert valid_path[-1] == env.goal_position
+
+# -------------------------------------------------------
+# Environment update tests
+# -------------------------------------------------------
 
 def test_create_reset():
     env, pm = init_env()
-    assert env.env_start == None, "'env_start' attribute should init to None."
+    assert np.all(env.env_start == env.empty_grid), (
+        "'env_start' attribute should init to a zero matrix.")
 
     # Fresh env
-    env.create()
-    assert env.env_start != None
-    assert np.all(env.grid == env.env_start.grid), \
+    env.create_new()
+    assert np.any(env.env_start != env.empty_grid)
+    assert np.all(env.grid == env.env_start), \
         "'env' should be the intial env after first call of 'env.create()'"
 
     # After a reset
-    env = env.reset()  
-    assert env.env_start != None
-    assert np.all(env.grid == env.env_start.grid), \
-        "After a reset, 'env' and 'env.env_start' should match"
+    env.reset()  
+    assert np.any(env.env_start != env.empty_grid)
+    assert np.all(env.grid == env.env_start), \
+        "After a reset, 'env.grid' and 'env.env_start' should match"
 
     # After another create, 'env' and 'env.env_start' are probably different,
-    env.create()
-    assert env.env_start != None
-    env = env.reset() # but now they should match again.
-    assert np.all(env.grid == env.env_start.grid), \
-        "After a reset, 'env' and 'env.env_start' should match"
+    env.create_new()
+    assert np.any(env.env_start != env.empty_grid)
+    env.reset() # but now they should match again.
     
+    assert np.all(env.grid == env.env_start), \
+        "After a reset, 'env.grid' and 'env.env_start' should match"
+    
+def test_auto_win():
+    """Test the agent on a 3 by 3  with 8 goals so that any action should result
+    in a terminal state and give reward 1. """
+
+    # Initialize an environment where it's impossible to lose. 
+    env = environment.Env(grid_shape=(3,3), n_goals=8, hole_pct = 0.0)
+    james_bond = Agent(4)
+    env.create_new()
+    auto_win_grid = np.full(shape = env.grid.shape, 
+                            fill_value = env.interactables['goal'],
+                            dtype = np.int32)
+    auto_win_grid[1, 1] = env.interactables['agent']
+    env.env_start = auto_win_grid
+    env.grid = auto_win_grid
+    
+    NUM_EPISODES: int = 25
+    MAX_NUM_SCENES: int = 1
+
+    episodes = []      
+    for _ in range(NUM_EPISODES): 
+        env.reset()
+        ep_steps: list = []
+        done: bool = False
+
+        for _ in range(MAX_NUM_SCENES):
+            # Start scene
+            state = environment.State(env, james_bond)
+            step = env.step(action_idx = random.randrange(8), 
+                            state = state)
+            observation, reward, done, info = step
+            ep_steps.append(step)
+            if done:
+                break
+        # Episode complete
+        if not done:
+            assert np.all([step.reward == 0 for step in ep_steps])
+        assert (done == True) or (len(ep_steps) == MAX_NUM_SCENES)
+        episodes.append(ep_steps)
+
+    ep_rewards = [traj[-1].reward for traj in episodes]
+    assert np.all([r == 1 for r in ep_rewards]), ""
+
+# ------------------------------------------------------------------
+# Run all 
+# ------------------------------------------------------------------
+
 def run_all_tests(verbose = True):
     tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
              test_random_walk, test_shortest_path, test_make_valid_path,
-             test_create_reset]
+             test_create_reset, test_auto_win]
     for test in tests:
         test()
         if verbose:
@@ -168,6 +218,5 @@ def run_all_tests(verbose = True):
     print("\nAll tests passed." if verbose else "")
  
 if __name__ == "__main__":
-    # for _ in range(100):
-    #     run_all_tests()
-    test_step()
+    for _ in range(1):
+        run_all_tests()
