@@ -1,11 +1,10 @@
 #%%
 import numpy as np
 import random
+import copy
 from typing import List
 from agent import Agent
 import environment
-
-
 
 def init_env():
     """Helper function for setting up a random environments for tests. 
@@ -93,6 +92,8 @@ def test_step():
         step = env.step(action_idx = 0, state = s)
         steps.append(step)
     breakpoint()
+
+    # TODO: 
         
 # -------------------------------------------------------
 # pathmaker.py tests
@@ -163,40 +164,44 @@ def test_create_reset():
 def test_auto_win():
     """Test the agent on a 3 by 3  with 8 goals so that any action should result
     in a terminal state and give reward 1. """
+
+    # Initialize an environment where it's impossible to lose. 
     env = environment.Env(grid_shape=(3,3), n_goals=8, hole_pct = 0.0)
     james_bond = Agent(4)
     env.create_new()
+    auto_win_grid = np.full(shape = env.grid.shape, 
+                            fill_value = env.interactables['goal'],
+                            dtype = np.int32)
+    auto_win_grid[1, 1] = env.interactables['agent']
+    env.env_start = auto_win_grid
+    env.grid = auto_win_grid
     
-    NUM_EPISODES = 20
-    MAX_SCENE_IDX = 2
+    NUM_EPISODES: int = 25
+    MAX_NUM_SCENES: int = 1
 
     episodes = []      
     for _ in range(NUM_EPISODES): 
-        env.reset(); print(f'reset | episode {_}')
+        env.reset()
         ep_steps: list = []
-        scene_idx: int = 0 
         done: bool = False
-        while not done:
+
+        for _ in range(MAX_NUM_SCENES):
             # Start scene
             state = environment.State(env, james_bond)
             step = env.step(action_idx = random.randrange(8), 
                             state = state)
             observation, reward, done, info = step
             ep_steps.append(step)
-
-            if scene_idx == MAX_SCENE_IDX:
-                break   
-            scene_idx += 1 
-
+            if done:
+                break
         # Episode complete
         if not done:
             assert np.all([step.reward == 0 for step in ep_steps])
-        assert (done == True) or (len(ep_steps) == MAX_SCENE_IDX)
- 
+        assert (done == True) or (len(ep_steps) == MAX_NUM_SCENES)
         episodes.append(ep_steps)
-        print(f'Episode {_} complete.')
-    
-    assert np.all([e[-1].reward == 1 for e in episodes]), ""
+
+    ep_rewards = [traj[-1].reward for traj in episodes]
+    assert np.all([r == 1 for r in ep_rewards]), ""
 
 # ------------------------------------------------------------------
 # Run all 
