@@ -35,25 +35,25 @@ class MultiHeadAttention(nn.Module):
         self.dropout = dropout
 
     def forward(self, x: torch.Tensor):
-        tgt_len, bsz, embed_dim = x.size()
+        tgt_len, batch_size, embed_dim = x.size()
         x = self.in_proj(x)
         q, k, v = x.chunk(3, dim=-1)
         q *= self.scaling
 
         q = q.contiguous().view(
-            tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            tgt_len, batch_size * self.num_heads, self.head_dim).transpose(0, 1)
         k = k.contiguous().view(
-            -1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            -1, batch_size * self.num_heads, self.head_dim).transpose(0, 1)
         v = v.contiguous().view(
-            -1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            -1, batch_size * self.num_heads, self.head_dim).transpose(0, 1)
 
-        # attn weight [bsz * num_heads, tgt_len, src_len]
+        # attn weight [batch_size * num_heads, tgt_len, src_len]
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = attn_weights - torch.max(attn_weights, dim=-1, keepdim=True)[0]
         attn_weights = F.softmax(attn_weights, dim=-1)
         attn_weights = F.dropout(attn_weights, p=self.dropout, training=self.training)
         attn = torch.bmm(attn_weights, v)
-        attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
+        attn = attn.transpose(0, 1).contiguous().view(tgt_len, batch_size, embed_dim)
         return attn
 
 class LitSelfAttention(pl.LightningModule):
