@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="f1cb97f6-3ad5-4d7e-a170-7c4f8f22cacb" name="Default Changelist" comment="mar 6 525 pm">
+    <list default="true" id="f1cb97f6-3ad5-4d7e-a170-7c4f8f22cacb" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/custom_env/environment.py" beforeDir="false" afterPath="$PROJECT_DIR$/custom_env/environment.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/a2c/actor.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/a2c/actor.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pg.py" beforeDir="false" afterPath="$PROJECT_DIR$/pg.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -187,7 +188,14 @@
       <option name="project" value="LOCAL" />
       <updated>1617559506609</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="mar 6 525 pm">
+      <created>1617561372614</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1617561372614</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -195,10 +203,10 @@
   </component>
   <component name="VcsManagerConfiguration">
     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
-    <MESSAGE value="mar 6 525 pm" />
     <MESSAGE value="progress" />
     <MESSAGE value="run pg in debugger and stop after every episode to recreate error where environment deletes goals once they are found" />
-    <option name="LAST_COMMIT_MESSAGE" value="run pg in debugger and stop after every episode to recreate error where environment deletes goals once they are found" />
+    <MESSAGE value="mar 6 525 pm" />
+    <option name="LAST_COMMIT_MESSAGE" value="mar 6 525 pm" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

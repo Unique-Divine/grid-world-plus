@@ -1,8 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
-import numpy as np
-
+from models.a2c.tools import discounted_reward
 
 class Actor(object):
     def __init__(self, state_dim, action_dim, lr, hidden_dim=50):
@@ -25,20 +24,15 @@ class Actor(object):
         dist = Categorical(F.softmax(self.model(states), dim=-1))
         return dist
 
-    def train(self, states, actions, advs):
-        states = torch.FloatTensor(states)
-        actions = torch.LongTensor(actions)
-        advs = torch.FloatTensor(advs[0])
+    def update(self, scene_rewards, gamma, log_probs):
+        # train
+        returns = discounted_reward(scene_rewards, gamma)
+        returns = torch.FloatTensor(returns)
+        log_probs = torch.cat(log_probs)
+        assert log_probs.requires_grad
+        assert not returns.requires_grad
 
-        # COMPUTE probability vector pi(s) for all s in states
-        states.requires_grad = True
-        dist_over_actions = self.model(states)
-        prob = F.softmax(dist_over_actions, dim=-1)
-        prob_selected = prob[range(len(prob)), actions]
-        log_probs = torch.log(prob_selected)
-        log_probs += 1e-8  # apparently needed for robustness
-
-        loss = - torch.mean(advs * log_probs)
+        loss = - torch.mean(returns * log_probs)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
