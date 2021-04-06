@@ -9,7 +9,6 @@ def access_root_dir(depth = 1):
     
     rel_path = os.path.join(*args)
     sys.path.append(rel_path) 
-    print(current_dir, parent_dir)
 
 access_root_dir()
 

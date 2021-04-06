@@ -1,10 +1,17 @@
 #%%
+import os
+try:
+    import rl_memory
+except:
+    exec(open('__init__.py').read()) 
+    import rl_memory
 import numpy as np
 import random
 import copy
 from typing import List
-from agents import Agent
-import environment
+
+from rl_memory.custom_env import environment
+from rl_memory.custom_env.agents import Agent
 
 def init_env():
     """Helper function for setting up a random environments for tests. 

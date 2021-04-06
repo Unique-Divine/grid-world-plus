@@ -1,12 +1,11 @@
-#%%
-from os import environ
+
 import numpy as np
-import sys
+import os, sys
 import copy
 import random
 import collections
 import copy
-from agents import Agent
+from rl_memory.custom_env.agents import Agent
 from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")

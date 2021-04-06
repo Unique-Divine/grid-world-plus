@@ -1,25 +1,16 @@
 import os, sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-_PACKAGE_ROOT = os.path.dirname(__file__)
-_PROJECT_ROOT = os.path.dirname(_PACKAGE_ROOT)
-_HTTPS_AWS_HUB: str = ""
+def access_root_dir(depth = 1):
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    args: list = [parent_dir]
+    for _ in range(depth):
+        args.append('..')
+    
+    rel_path = os.path.join(*args)
+    sys.path.append(rel_path) 
+    print(current_dir, parent_dir)
+
+access_root_dir()
 
 import rl_memory
-from rl_memory import (
-    custom_env,
-    data_modules,
-    erik,
-    models,
-    transformer,
-    helpers,
-)
-
-__all__ = [
-    'custom_env',
-    'data_modules',
-    'erik',
-    'models',
-    'transformer',
-    'helpers',
-]
