@@ -3,7 +3,7 @@ import numpy as np
 import random
 import copy
 from typing import List
-from agent import Agent
+from agents import Agent
 import environment
 
 def init_env():

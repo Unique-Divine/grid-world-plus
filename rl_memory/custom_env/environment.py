@@ -6,7 +6,7 @@ import copy
 import random
 import collections
 import copy
-from custom_env.agent import Agent
+from agents import Agent
 from typing import List, Union, Generator, NamedTuple
 import warnings
 warnings.filterwarnings("ignore")
