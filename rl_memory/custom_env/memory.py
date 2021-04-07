@@ -11,7 +11,7 @@ class Memory:
 class Trajectory:
 
     def __init__(self, memories: List[Memory] = []):
-        self.memories: List[Memory] = memories
+        self.memories = memories
 
     @property
     def rewards(self) -> List[float]:
@@ -32,6 +32,9 @@ class Trajectory:
         if idx >= len(self):
             raise IndexError
         return self.memories[idx]
+
+    def __repr__(self):
+        return f"<{self.__class__.__name__} at {hex(id(self))}>"
     
 
     
