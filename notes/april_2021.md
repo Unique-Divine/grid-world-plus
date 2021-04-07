@@ -1,5 +1,31 @@
+- [TODOs](#todos)
+- [Experiments and Mini Projects](#experiments-and-mini-projects)
+  - [Experiment 1:](#experiment-1)
+  - [Experiment 2:](#experiment-2)
+  - [Experiment3:  Exp. 2 with deterministic critic (as opposed to network)](#experiment3--exp-2-with-deterministic-critic-as-opposed-to-network)
+  - [Experiment: actor-critic | 2 Transformers](#experiment-actor-critic--2-transformers)
+  - [Experiment: Vanilla actor-critic for image task](#experiment-vanilla-actor-critic-for-image-task)
+  - [Experiment: Prioritizing buffer w/ Transformer](#experiment-prioritizing-buffer-w-transformer)
 
 
+
+# TODOs
+
+- [ ] (U): Implement state representations code -> with justification
+- [ ] (U): Convert observation views to torch.Tensor
+The goal from these two steps is to be able to pass input (representations) through our networks for testing. 
+
+- [ ] (E): Discover/invent similarity metric for Exp. 3 (above)
+- [ ] (E): Implement similiarity metric from above.
+- [ ] (U): Run vanilla A-C on simple env 
+- [ ] (U): Run M-CURL like  algo on simple env
+- [ ] (U): Run soft A-C w/ on simple env
+- [ ] (U): Write training scheme where Transformer gives argument for the Q-value calculation in a deep Q (off-policy) method such as rainbow, DDQN.
+- [ ] (E): Implement the policy described by `LSTMPolicy` in the [curiosity-driven exploration](https://github.com/pathak22/noreward-rl/blob/master/src/model.py)  code in PyTorch and then use it on the env for regular policy-gradient training. Also, try to see how they prepare images as inputs. 
+
+---
+
+# Experiments and Mini Projects
 
 ## Experiment 1:  
 
@@ -38,21 +64,8 @@ This is mostly just a benchmark to compare against the attention-assisted paradi
 
 Context vector from sequence predictions of the Transformer can say which states to focus on for a trajectory to gain the most information for predicting the reward.  
 
-
 ----
 
-# TODOs
 
-- [ ] (U): Implement state representations code -> with justification
-- [ ] (U): Convert observation views to torch.Tensor
-The goal from these two steps is to be able to pass input (representations) through our networks for testing. 
-
-- [ ] (E): Discover/invent similarity metric for Exp. 3 (above)
-- [ ] (E): Implement similiarity metric from above.
-- [ ] (U): Run vanilla A-C on simple env 
-- [ ] (U): Run M-CURL like  algo on simple env
-- [ ] (U): Run soft A-C w/ on simple env
-- [ ] (U): Write training scheme where Transformer gives argument for the Q-value calculation in a deep Q (off-policy) method such as rainbow, DDQN.
-- [ ] (E): Implement the policy described by `LSTMPolicy` in the [curiosity-driven exploration](https://github.com/pathak22/noreward-rl/blob/master/src/model.py)  code in PyTorch and then use it on the env for regular policy-gradient training. Also, try to see how they prepare images as inputs. 
 
 
