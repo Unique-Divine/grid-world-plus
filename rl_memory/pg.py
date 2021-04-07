@@ -4,8 +4,8 @@ import numpy as np
 from models.a2c.actor import Actor
 from models.a2c.tools import plot_episode_rewards
 
-from custom_env.agent import Agent
-from custom_env.environment import Env, State, PathMaker
+from rl_memory.custom_env.agent import Agent
+from rl_memory.custom_env.environment import Env, State, PathMaker
 
 # env hyperparams
 grid_shape = (3, 3)
