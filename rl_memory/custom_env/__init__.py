@@ -14,12 +14,14 @@ def access_root_dir(depth = 1):
 access_root_dir()
 
 from rl_memory.custom_env.agents import Agent
-from rl_memory.custom_env.environment import Point, Env, PathMaker, State
+from rl_memory.custom_env.environment import (
+    Point, Env, PathMaker, Observation, State)
 
 __all__ = [
     'Point',
     'Env',
     'PathMaker',
+    'Observation',
     'State',
     'Agent',
 ]
