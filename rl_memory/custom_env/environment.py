@@ -279,12 +279,14 @@ class Env:
             assert np.all(new_env.env_start == self.empty_grid)
             any_holes: bool = lambda grid: np.any(
                 grid == self.interactables['hole'])
-            assert any_holes(new_env.grid) == False, (
-                "The 'new_env' should start out frozen after initialization.")
+            if self.hole_pct > 0:
+                assert any_holes(new_env.grid) == False, (
+                    "The 'new_env' should start out frozen after initialization.")
             
             # Place agent, goal(s), and holes on 'new_env'. 
             setup_blank_env(env = new_env)
-            assert any_holes(new_env.grid) == True
+            if self.hole_pct > 0:
+                assert any_holes(new_env.grid) == True
             
             # Set 'new_env' initial grid state
             new_env.env_start = new_env.grid

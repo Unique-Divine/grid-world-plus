@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-from actor import Actor
+from rl_memory.actor import Actor
 from critic import Critic
 from tools import discounted_reward, plot_episode_rewards
 

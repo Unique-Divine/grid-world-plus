@@ -24,10 +24,11 @@ def discounted_reward(r, gamma):
     return list(discounted_r)
 
 
-def plot_episode_rewards(values, title=''):
+def plot_episode_rewards(values, title, reset_frequency):
     """ Plot the reward curve and histogram of results over time."""
     # Update the window after each episode
     clear_output(wait=True)
+    x = range(len(values))
 
     # Define the figure
     f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12,5))
@@ -36,8 +37,12 @@ def plot_episode_rewards(values, title=''):
     ax[0].axhline(1, c='red', ls='--', label='goal')
     ax[0].set_xlabel('Episodes')
     ax[0].set_ylabel('Reward')
-    x = range(len(values))
     ax[0].legend()
+
+    # xcoords = [i for i in x if i%reset_frequency==0]
+    # for xc in xcoords:
+    #     plt.axvline(x=xc, color='k', linestyle='--')
+
     # Calculate the trend
     try:
         z = np.polyfit(x, values, 1)
@@ -45,6 +50,8 @@ def plot_episode_rewards(values, title=''):
         ax[0].plot(x, p(x), "--", label='trend')
     except:
         print('')
+
+
 
     # Plot the histogram of results
     ax[1].hist(values[-50:])
