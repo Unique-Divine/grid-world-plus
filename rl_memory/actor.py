@@ -4,14 +4,18 @@ from torch.distributions import Categorical
 from rl_memory.models.a2c.tools import discounted_reward
 from rl_memory.memory import Memory
 
-
 class Actor(object):
     def __init__(self, state_dim, action_dim, lr, hidden_dim=50):
+        self.convolution = torch.nn.Sequential(
+            torch.nn.Conv2d(in_channels=3, out_channels=3, kernel_size=2),
+        )
+        # , stride=1, padding=1
+
         self.model = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=3, out_channels=3, kernel_size=2, stride=1, padding=1),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2),
-            torch.nn.Linear(3*state_dim, hidden_dim),
+            # torch.nn.Conv2d(in_channels=3, out_channels=3, kernel_size=2, stride=1, padding=1),
+            # torch.nn.ReLU(),
+            # torch.nn.MaxPool2d(kernel_size=2, stride=2),
+            torch.nn.Linear(state_dim, hidden_dim),
             torch.nn.ReLU(),
             torch.nn.Linear(hidden_dim, action_dim)
         )

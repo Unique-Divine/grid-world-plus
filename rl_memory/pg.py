@@ -1,11 +1,11 @@
-import torch
 import numpy as np
+import torch
 
-from models.a2c.actor import Actor
-from models.a2c.tools import plot_episode_rewards
+from rl_memory.actor import Actor
+from rl_memory.models.a2c.tools import plot_episode_rewards
 
-from rl_memory.custom_env.agent import Agent
-from rl_memory.custom_env.environment import Env, State, PathMaker
+from rl_memory.custom_env.agents import Agent
+from rl_memory.custom_env.environment import Env, State
 
 # env hyperparams
 grid_shape = (3, 3)
@@ -25,7 +25,7 @@ def train(
         create_new_counter=0, reset_frequency=5
 ):
 
-    max_num_scenes = 5 * grid_shape[0] * grid_shape[1]
+    max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
 
     # init model
     state_dim = state.observation.size
@@ -64,14 +64,18 @@ def train(
             log_probs.append(action_dist.log_prob(a).unsqueeze(0))
 
             ns, r, d, info = env.step(action_idx=a, state=state)  # ns is the new state observation bc of vision window
-            scene_rewards.append(r)
 
             scene_number += 1
             if scene_number > max_num_scenes:
+                r = -1
+                scene_rewards.append(r)
                 break
 
             if d:
                 episode_envs.append(env.render_as_char(env.grid))
+
+            scene_rewards.append(r)
+
 
         create_new_counter += 1
         training_episode_rewards.append(np.sum(scene_rewards))
@@ -123,4 +127,4 @@ def test(env=test_env, james_bond=james_bond, policy=actor, num_episodes=10):
 
 
 test_episode_rewards, episode_trajectories = test()
-plot_episode_rewards(test_episode_rewards, "test rewards")
+plot_episode_rewards(test_episode_rewards, "test rewards", reset_frequency=5)
