@@ -1,4 +1,4 @@
-# memory.py
+#!/usr/bin/env python3
 from typing import List
 
 class Memory:

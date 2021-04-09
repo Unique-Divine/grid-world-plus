@@ -1,5 +1,6 @@
 
 import numpy as np
+import torch
 import os, sys
 import copy
 import random
@@ -7,6 +8,7 @@ import collections
 import copy
 from rl_memory.custom_env.agents import Agent
 from typing import List, Union, Generator, NamedTuple
+from torch import Tensor
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -71,10 +73,10 @@ class Env:
     replay_buffer.append( ... )
     ```
     """
-    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
-        self.interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
-                              'agent': 7, 'blocked': 3} 
+    interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
+                              'agent': 7, 'blocked': 3}
 
+    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
             raise ValueError("'grid_shape' must be a list-like of length 2.")
@@ -127,14 +129,15 @@ class Env:
     def render(self):
         raise NotImplementedError
         pass
-
-    def render_as_char(self, grid) -> np.ndarray:
+    
+    @classmethod
+    def render_as_char(cls, grid) -> np.ndarray:
         interactables_to_char = {
-            self.interactables['frozen']: "_", 
-            self.interactables['hole']: "o", 
-            self.interactables['goal']: "G", 
-            self.interactables['agent']: "A",
-            self.interactables['blocked']: "'"} 
+            cls.interactables['frozen']: "_", 
+            cls.interactables['hole']: "o", 
+            cls.interactables['goal']: "G", 
+            cls.interactables['agent']: "A",
+            cls.interactables['blocked']: "'"} 
         char_grid = np.asarray(
             [interactables_to_char[e] for e in grid.flatten()],
             dtype = str).reshape(grid.shape)
@@ -320,6 +323,7 @@ class Env:
             new_x, new_y = Point(self.agent_position) + action
             self.grid[x, y] = self.interactables['frozen']
             self.grid[new_x, new_y] = self.interactables['agent']
+
         def unable_to_move():
             pass
 
@@ -647,7 +651,20 @@ class PathMaker:
         valid_path: List[List[int]] = path_a
         return valid_path
 
-class State:
+# class Point(np.ndarray):
+#     """A 1D np.ndarray of size 2 that contains the row and column
+#     indices for a point in the environment.  
+#     """
+#     def __new__(cls, *args):
+#         if len(args) == 2:
+#             self = np.asarray([*args], dtype=np.int16)
+#         elif len(args) == 1:
+#             self = np.asarray(args[0], dtype=np.int16)
+#         else:
+#             raise ValueError("oof")
+#         return self
+
+class Observation(torch.Tensor):
     """[summary]
     
     Args:
@@ -658,42 +675,53 @@ class State:
         center_abs (Point): The agent's on the 'env.grid'.
         center (Point): The agent's position on the current sight window.
     """
-    def __init__(self, env: Env, agent: Agent) -> None:
-        self.env = env
-        self.agent: Agent = agent
-        self._center: Point = self.center
-        self.center_abs: Point = Point(env.agent_position)
-        self._observation: np.ndarray = self.observation
-    
-    @property
-    def center(self) -> Point:
-        return Point([self.agent.sight_distance] * 2)
-    
-    @property 
-    def observation(self) -> np.ndarray:
-        sd: int = self.agent.sight_distance
-        center_abs: Point = self.center_abs
-        observation = np.empty(
-            shape= [self.agent.sight_distance * 2 + 1] * 2, 
-            dtype = np.int16)
-        row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
-        col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
-        def views(row_view, col_view) -> Generator:
-            for row_idx in row_view:
-                for col_idx in col_view:
-                    displacement = Point(row_idx, col_idx) - center_abs
-                    relative_position: Point = self.center + displacement
-                    rel_row, rel_col = relative_position
-                    yield row_idx, col_idx, rel_row, rel_col
-        
-        for view in views(row_view, col_view):
-            row_idx, col_idx, rel_row, rel_col = view 
-            if [row_idx, col_idx] in self.env.position_space:
-                observation[rel_row, rel_col] = self.env.grid[row_idx, col_idx]
-            else:
-                observation[rel_row, rel_col] = self.env.interactables[
-                    'blocked']
-        return observation
+    def __new__(cls, env: Env, agent: Agent, dtype = torch.float) -> Tensor:
+        def observe(env = env, agent = agent) -> Tensor:
+            env_position_space = env.position_space
+            env_grid = env.grid
+            env_interactables = env.interactables
+            center: Point = Point([agent.sight_distance] * 2)
+            center_abs: Point = Point(env.agent_position)
+
+            sd: int = agent.sight_distance
+            center_abs: Point = center_abs
+            observation = np.empty(
+                shape= [agent.sight_distance * 2 + 1] * 2, 
+                dtype = np.int16)
+            row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
+            col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
+            def views(row_view, col_view) -> Generator:
+                for row_idx in row_view:
+                    for col_idx in col_view:
+                        displacement = Point(row_idx, col_idx) - center_abs
+                        relative_position: Point = center + displacement
+                        rel_row, rel_col = relative_position
+                        yield row_idx, col_idx, rel_row, rel_col
+            
+            for view in views(row_view, col_view):
+                row_idx, col_idx, rel_row, rel_col = view 
+                if [row_idx, col_idx] in env_position_space:
+                    observation[rel_row, rel_col] = env_grid[row_idx, col_idx]
+                else:
+                    observation[rel_row, rel_col] = env_interactables[
+                        'blocked']
+            return torch.from_numpy(observation).float()
+
+        obs: Tensor = observe(env, agent)
+        return obs
 
     def __repr__(self):
-        return f"{self.env.render_as_char(self.observation)}"
+        obs_grid = self.numpy()
+        return f"{Env.render_as_char(grid = obs_grid)}"
+
+class State:
+    def __init__(self):
+        pass
+    
+
+def toy():
+    env = Env()
+    env.reset()
+
+
+toy()
