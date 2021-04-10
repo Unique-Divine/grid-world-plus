@@ -673,6 +673,7 @@ class Observation(torch.Tensor):
     Attributes:
         center_abs (Point): The agent's on the 'env.grid'.
         center (Point): The agent's position on the current sight window.
+        agent (Agent)
     """
     def __new__(cls, env: Env, agent: Agent, dtype = torch.float) -> Tensor:
         env_position_space = env.position_space
@@ -714,11 +715,6 @@ class Observation(torch.Tensor):
             pass # TODO 
         return obs
     
-    def __init__(self, env: Env, agent: Agent):
-        self.center: Point = Point([agent.sight_distance] * 2)
-        self.center_abs: Point = Point(env.agent_position) 
-        self.agent: Agent = agent 
-
     def __repr__(self):
         obs_grid = self.numpy()
         return f"{Env.render_as_char(grid = obs_grid)}"
