@@ -6,6 +6,12 @@ import copy
 import random
 import collections
 import copy
+from torch._C import Value
+try:
+    import rl_memory
+except:
+    exec(open('__init__.py').read()) 
+    import rl_memory
 from rl_memory.custom_env.agents import Agent
 from typing import List, Union, Generator, NamedTuple
 from torch import Tensor
@@ -653,25 +659,14 @@ class PathMaker:
         valid_path: List[List[int]] = path_a
         return valid_path
 
-# class Point(np.ndarray):
-#     """A 1D np.ndarray of size 2 that contains the row and column
-#     indices for a point in the environment.  
-#     """
-#     def __new__(cls, *args):
-#         if len(args) == 2:
-#             self = np.asarray([*args], dtype=np.int16)
-#         elif len(args) == 1:
-#             self = np.asarray(args[0], dtype=np.int16)
-#         else:
-#             raise ValueError("oof")
-#         return self
-
 class Observation(torch.Tensor):
     """[summary]
     
     Args:
         env (Env): An environment with an agent in it. The environment contains 
             all information needed to get a state for reinforcement learning. 
+        agent (Agent): The agent that's making the observation of the env.
+        dtype: The data type for the observation, which is a torch.Tensor.
 
     Attributes:
         center_abs (Point): The agent's on the 'env.grid'.
@@ -710,16 +705,36 @@ class Observation(torch.Tensor):
             return torch.from_numpy(observation).float()
 
         obs: Tensor = observe(env, agent)
+        def as_color_img(obs: Tensor, env = env):
+            pass # TODO 
         return obs
 
     def __repr__(self):
         obs_grid = self.numpy()
         return f"{Env.render_as_char(grid = obs_grid)}"
 
-class State:
-    def __init__(self):
-        pass
-    
+class State(list):
+    def __new__(cls, observations: List[Observation], K: int = 2) -> list:
+        assert cls.check_for_valid_args(observations, K)
+
+        state: List[Observation]
+        if K == 1:
+            state = observations
+        if len(observations) < K:
+            state = observations
+            duplications = K - len(observations)
+            for _ in range(duplications):
+                state.insert(0, observations[0])
+        return state
+        
+    @classmethod
+    def check_for_valid_args(cls, observations, K):
+        if len(observations) < 1:
+            raise ValueError("Attribute 'observations' (list) is empty.") 
+        elif K < 1:
+            raise ValueError("Attribute 'K' (int) is must be >= 1.")
+        else:
+            return True
 
 def toy():
     env = Env()
