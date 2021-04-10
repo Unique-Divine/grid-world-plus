@@ -6,6 +6,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import numpy as np
+import torch
 import random
 import copy
 import warnings; warnings.filterwarnings("ignore")
@@ -123,7 +124,11 @@ class TestPathMaker:
 class TestStateObservation:
     """Unit tests for initialization of Observation and State instances."""
     def test_obs_init(self):
-        pass # TODO
+        env, pm = init_env()
+        env.reset()
+        obs = environment.Observation(env = env, agent = Agent(3))
+        assert isinstance(obs, torch.Tensor)
+        # TODO 
 
     def test_state_start(self):
         pass # TODO

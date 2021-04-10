@@ -15,8 +15,7 @@ except:
 from rl_memory.custom_env.agents import Agent
 from typing import List, Union, Generator, NamedTuple
 from torch import Tensor
-import warnings
-warnings.filterwarnings("ignore")
+import warnings; warnings.filterwarnings("ignore")
 
 class Point(np.ndarray):
     """A 1D np.ndarray of size 2 that contains the row and column
