@@ -208,28 +208,11 @@ class TestEnvIntegration:
         done = False
         steps = []
         # while done != True:
+        breakpoint()
         for _ in range(5):
             obs = environment.Observation(env=env, agent=james_bond)
-            step = env.step(action_idx = 0, state = s)
+            step = env.step(action_idx = 0, state = obs)
             steps.append(step)
         breakpoint()
 
         # TODO: 
-
-# ------------------------------------------------------------------
-# Run all 
-# ------------------------------------------------------------------
-
-def run_all_tests(verbose = True):
-    tests = [test_set_agent_goal, test_set_holes, test_generate_shifted_spots, 
-             test_random_walk, test_shortest_path, test_make_valid_path,
-             test_create_reset, test_auto_win]
-    for test in tests:
-        test()
-        if verbose:
-            print(f"Test passed: '{test.__name__}'")
-    print("\nAll tests passed." if verbose else "")
- 
-if __name__ == "__main__":
-    for _ in range(1):
-        run_all_tests()

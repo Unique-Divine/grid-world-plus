@@ -36,10 +36,11 @@ class Point(np.ndarray):
     def __new__(cls, *args):
         if len(args) == 2:
             self = np.asarray([*args], dtype=np.int16)
-        elif len(args) == 1:
+        elif (((len(args) == 1) and isinstance(args[0], list))    
+              or ((len(args) == 1) and isinstance(args[0], tuple))):
             self = np.asarray(args[0], dtype=np.int16)
         else:
-            raise ValueError("oof")
+            raise ValueError(f"args: {args}, type(args[0]): {type(args[0])}")
         return self
 
 class Env:
@@ -285,9 +286,8 @@ class Env:
             assert np.all(new_env.env_start == self.empty_grid)
             any_holes: bool = lambda grid: np.any(
                 grid == self.interactables['hole'])
-            if self.hole_pct > 0:
-                assert any_holes(new_env.grid) == False, (
-                    "The 'new_env' should start out frozen after initialization.")
+            assert any_holes(new_env.grid) == False, (
+                "The 'new_env' should start out frozen after initialization.")
             
             # Place agent, goal(s), and holes on 'new_env'. 
             setup_blank_env(env = new_env)
@@ -313,18 +313,20 @@ class Env:
         Returns:
             Env: The initial environment.
         """        
-        if isinstance(self.env_start, np.ndarray):
+        start_is_not_empty: bool = not np.all(self.env_start == self.empty_grid)
+        start_is_empty = not start_is_not_empty
+        if isinstance(self.env_start, np.ndarray) and start_is_not_empty:
             self.grid = copy.deepcopy(self.env_start)
-        elif isinstance(self.env_start, None):
+        elif isinstance(self.env_start, type(None)) or start_is_empty:
             self.create_new()
         else:
             raise AttributeError("'env_start' must be an ndarray or None.")
 
-    def step(self, action_idx: int, state) -> NamedTuple:
+    def step(self, action_idx: int, obs) -> NamedTuple:
         action: Point = self.action_space[action_idx]
-        desired_position: Point = state.center + action
+        desired_position: Point = obs.center + action
         new_x, new_y = desired_position
-        interactable: int = state.observation[new_x, new_y]
+        interactable: int = obs[new_x, new_y].item()
         
         def move():
             x, y = self.agent_position
@@ -363,10 +365,10 @@ class Env:
             raise ValueError(f"interactable: '{interactable}' is not in "
                 +f"interactables: {self.interactables}")
         
-        next_observation = State(self, state.agent).observation 
+        next_observation = Observation(env = self, agent = obs.agent)
         info = ""
         Step = collections.namedtuple(
-            "Step", ["next_observation", "reward", "done", "info"])
+            "Step", ["next_obs", "reward", "done", "info"])
         return Step(next_observation, reward, done, info)
         
 class PathMaker:
@@ -708,6 +710,11 @@ class Observation(torch.Tensor):
         def as_color_img(obs: Tensor, env = env):
             pass # TODO 
         return obs
+    
+    def __init__(self, env: Env, agent: Agent):
+        self.center: Point = Point([agent.sight_distance] * 2)
+        self.center_abs: Point = Point(env.agent_position) 
+        self.agent: Agent = agent 
 
     def __repr__(self):
         obs_grid = self.numpy()
@@ -735,10 +742,3 @@ class State(list):
             raise ValueError("Attribute 'K' (int) is must be >= 1.")
         else:
             return True
-
-def toy():
-    env = Env()
-    env.reset()
-
-
-toy()
