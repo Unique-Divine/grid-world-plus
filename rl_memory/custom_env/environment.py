@@ -675,15 +675,14 @@ class Observation(torch.Tensor):
         center (Point): The agent's position on the current sight window.
     """
     def __new__(cls, env: Env, agent: Agent, dtype = torch.float) -> Tensor:
-        def observe(env = env, agent = agent) -> Tensor:
-            env_position_space = env.position_space
-            env_grid = env.grid
-            env_interactables = env.interactables
-            center: Point = Point([agent.sight_distance] * 2)
-            center_abs: Point = Point(env.agent_position)
+        env_position_space = env.position_space
+        env_grid = env.grid
+        env_interactables = env.interactables
+        center: Point = Point([agent.sight_distance] * 2)
+        center_abs: Point = Point(env.agent_position)
 
+        def observe() -> Tensor:
             sd: int = agent.sight_distance
-            center_abs: Point = center_abs
             observation = np.empty(
                 shape= [agent.sight_distance * 2 + 1] * 2, 
                 dtype = np.int16)
@@ -706,7 +705,11 @@ class Observation(torch.Tensor):
                         'blocked']
             return torch.from_numpy(observation).float()
 
-        obs: Tensor = observe(env, agent)
+        obs: Tensor = observe()
+        setattr(obs, "center", center)
+        setattr(obs, "center_abs", center_abs)
+        setattr(obs, "agent", agent)
+
         def as_color_img(obs: Tensor, env = env):
             pass # TODO 
         return obs

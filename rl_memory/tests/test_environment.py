@@ -178,15 +178,15 @@ class TestEnvIntegration:
 
         episodes = []      
         for _ in range(NUM_EPISODES): 
-            env.reset()
+            env.reset(); assert not np.all(env.grid == env.empty_grid)
             ep_steps: list = []
             done: bool = False
 
             for _ in range(MAX_NUM_SCENES):
                 # Start scene
-                state = environment.State(env, james_bond)
+                obs = environment.Observation(env, james_bond)
                 step = env.step(action_idx = random.randrange(8), 
-                                state = state)
+                                obs = obs)
                 observation, reward, done, info = step
                 ep_steps.append(step)
                 if done:
@@ -208,11 +208,11 @@ class TestEnvIntegration:
         done = False
         steps = []
         # while done != True:
-        breakpoint()
-        for _ in range(5):
+        for _ in range(50):
             obs = environment.Observation(env=env, agent=james_bond)
-            step = env.step(action_idx = 0, state = obs)
+            step = env.step(
+                action_idx = random.randrange(len(env.action_space)),
+                obs = obs)
             steps.append(step)
-        breakpoint()
 
         # TODO: 
