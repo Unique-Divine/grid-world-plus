@@ -25,6 +25,9 @@ class ImageTransforms:
     interactables = {
         'frozen': 0, 'hole': 1, 'goal': 2, 'agent': 7, 'blocked': 3}
     NUM_CHANNELs = 4
+    
+    def __init__(self):
+        pass
 
     def grid_to_rgby(self, grid) -> Tensor:
         assert isinstance(grid, (ndarray, Tensor))
@@ -53,7 +56,6 @@ class ImageTransforms:
         # mode = 'RGB'
         plt.imshow(rgb)
         plt.show()
-
 
 def demo_show_plots():
     it = ImageTransforms()
