@@ -237,6 +237,10 @@ class Env:
         """
         hole_pct = self.hole_pct if (hole_pct == None) else hole_pct
         n_holes: int = int(len(self.open_positions) * self.hole_pct)
+        if len(self.open_positions) > 0: 
+            if n_holes == 0: 
+                n_holes = 1 
+
         for _ in range(n_holes):
             hole_position = self.randomly_select_open_position()
             self.open_positions.remove(hole_position)
