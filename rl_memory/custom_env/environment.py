@@ -290,8 +290,8 @@ class Env:
             
             # Place agent, goal(s), and holes on 'new_env'. 
             setup_blank_env(env = new_env)
-            if self.hole_pct > 0:
-                assert any_holes(new_env.grid) == True
+            # if self.hole_pct > 0:
+            #     assert any_holes(new_env.grid) == True
             
             # Set 'new_env' initial grid state
             new_env.env_start = new_env.grid
