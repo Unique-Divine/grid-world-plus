@@ -355,7 +355,7 @@ class Env:
             done = True
         elif interactable == self.interactables['blocked']:
             unable_to_move()
-            reward = 0
+            reward = 0.1
             done = False
         elif interactable == self.interactables['agent']:
             raise NotImplementedError("There shouldn't be two agents yet.")
