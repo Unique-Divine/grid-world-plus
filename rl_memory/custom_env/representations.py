@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torch._C import Value
 import torch.nn as nn
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from numpy import ndarray
 from torch import Tensor
@@ -74,41 +75,81 @@ def demo_show_plots():
         it.show_rgb(an_img)
 
 class ImgEncoder(nn.Module):
-    """Convolutional pixel encoder f_θ
+    """Convolutional pixel encoder for observations
 
     input_img
     Conv2d input size is (N, C, H, W), where H is the img height, W the img 
         width, C the number of channels (3 for RGB), and N is the batch size
     ouput_channels is the number of filters, a.k.a. kernels.
     """
-    def __init__(self, obs_shape, batch_size = 1, num_img_channels=3):
+    def __init__(self, obs_shape, num_img_channels=3):
         super().__init__()
-        self.obs_shape = obs_shape
+        self.obs_shape = obs_shape; assert len(obs_shape) == 3
+        batch_size = obs_shape[0]
         self.batch_size = batch_size
 
+        # Convolutional layer parameters
         self.num_img_channels = num_img_channels
         num_filters = 20
-        img_len = obs_shape[-1]
-        filter_len = 3
-        padding = 0
-        stride = 1
-        output_len = ((img_len - filter_len + 2*padding) / stride) + 1
-        print(output_len)
+        img_width = obs_shape[-1]
+        filter_width = 3
+        l0_padding = 0
+        l0_stride = 1
+        output_width = (
+            (img_width - filter_width + 2*l0_padding) / l0_stride) + 1
+
+        # --------------------------------------------
         # Architecture
-        self.conv_l0 = nn.Conv2d(
-            in_channels=3, out_channels=num_filters, kernel_size=filter_len, 
-            padding=padding)
+        # --------------------------------------------
+        self.conv_l0 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=3, out_channels=num_filters, 
+                kernel_size=filter_width, stride = l0_stride, 
+                padding=l0_padding, ),
+            nn.ReLU())
+        self.conv_l1 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=num_filters, out_channels=num_filters, 
+                kernel_size=filter_width, stride = 1),
+            nn.ReLU())
+        self.conv_layers = [self.conv_l0, self.conv_l1]
+
+        self.img_width = img_width
+
+        self.outputs: dict = {}
+
+        # __init__ mini tests
+        assert obs_shape[-1] == obs_shape[-2], (
+            "The input observation should be a square image.")        
+
+    def forward_convolutions(self, obs: Tensor) -> Tensor:
+        """[summary]
+
+        Args:
+            obs (Tensor): [description]
+        """
+        self.outputs['obs'] = obs
+        batch_size = obs.size(0)
+        # Pass observation through conv_layers
+        x = obs
+        for idx, layer in enumerate(self.conv_layers):
+            x = layer(x)
+            self.outputs[f'conv_l{idx}'] = x
         
-        self.img_len = img_len
+        embedding = x.view(batch_size, -1) # store as column vector
+        return embedding
 
-    def forward(self, x):
-        correct_shape = torch.Size((self.batch_size, self.num_img_channels, 
-                                    self.img_len, self.img_len))
+    def forward(self, x: Tensor):
+        batch_size = x.size(0)
+        correct_shape = torch.Size([batch_size, self.num_img_channels, 
+                                    self.img_width, self.img_width])
         assert x.shape == correct_shape, (
-            f"Expected input of shape (N, C, H, W), which is {correct_shape},"
-            + f" but got input with {x.shape} instead")
+            f"Expected 'x' of shape (N, C, H, W), which is {correct_shape},"
+            + f" but got 'x' with {x.shape} instead")
 
-        return self.conv_l0(x)
+        embedding = self.forward_convolutions(x)
+        output = embedding  # for now
+        return output
 
 # ---------------------------------------------------------
 # Test Classes
@@ -117,6 +158,7 @@ class ImgEncoder(nn.Module):
 class TestImgEncoder:
     @staticmethod
     def test_forward():
+        BATCH_SIZE = 10
         SIGHT_DISTANCE: int = 4
         
         # Create and initialize environment
@@ -127,14 +169,19 @@ class TestImgEncoder:
         obs = environment.Observation(env=env, agent=environment.Agent(
             sight_distance = SIGHT_DISTANCE))
         img_transforms = ImgTransforms()
-        img_len: int = 2*SIGHT_DISTANCE + 1
-        obs_img = img_transforms.grid_to_rgb(obs).view(
-            1, img_transforms.num_channels, img_len, img_len).float()
+        img_width: int = 2*SIGHT_DISTANCE + 1
+        obs_img = img_transforms.grid_to_rgb(obs).float()
+        assert obs_img.size() == torch.Size(
+            (img_transforms.num_channels, img_width, img_width))
+        
+        # Create batch of observations to test the forward pass
+        obs_imgs = [obs_img] * BATCH_SIZE
+        batch = torch.stack(tensors=obs_imgs, dim=0)
 
-        # Pass observation image through the image encoder
-        rl_encoder = ImgEncoder(obs_shape = obs.shape, batch_size=1)
-        out = rl_encoder(obs_img)
-        return out
+        # Pass batch of images through image encoder
+        rl_encoder = ImgEncoder(obs_shape = obs_img.shape)
+        out: Tensor = rl_encoder(batch)
+        assert out.shape[0] == BATCH_SIZE
 
 class TestImgTransfroms:
     @staticmethod
@@ -159,7 +206,4 @@ class TestImgTransfroms:
                 "'img_tensor' has the wrong number of channels" 
                 + f"({img_tensor.shape[-1]}), when it should have 4.")
 
-#%%
-
-out = TestImgEncoder.test_forward()
-print(out.shape)
+# TestImgEncoder.test_forward()
