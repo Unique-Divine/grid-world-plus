@@ -6,7 +6,6 @@ import copy
 import random
 import collections
 import copy
-from torch._C import Value
 try:
     import rl_memory
 except:
@@ -152,14 +151,14 @@ class Env:
     @classmethod
     def render_as_grid(cls, char_grid) -> np.ndarray:
         char_to_interactables = {
-            cls.interactables['_']: "frozen", 
-            cls.interactables['o']: "hole", 
-            cls.interactables['G']: "goal", 
-            cls.interactables['A']: "agent",
-            cls.interactables["'"]: "blocked"} 
+            "_": cls.interactables["frozen"], 
+            "o": cls.interactables["hole"], 
+            "G": cls.interactables["goal"], 
+            "A": cls.interactables["agent"],
+            "'": cls.interactables["blocked"]} 
         grid = np.asarray(
             [char_to_interactables[e] for e in char_grid.flatten()],
-            dtype = str).reshape(char_grid.shape)
+            dtype = np.int32).reshape(char_grid.shape)
         return grid
 
     # --------------------------------------------------------------------
@@ -701,14 +700,17 @@ class Observation(torch.Tensor):
             env_position_space = Env(grid_shape=env_grid.shape).position_space
             env_grid = env_grid
         elif env_char_grid is not None:
-            env_position_space = Env(grid_shape=env_grid.shape).position_space
+            env_position_space = Env(
+                grid_shape=env_char_grid.shape).position_space
             env_grid = Env.render_as_grid(char_grid = env_char_grid)
         elif env is not None:
             env_position_space = env.position_space
             env_grid = env.grid
-            # env_interactables = env.interactables
+
         center: Point = Point([agent.sight_distance] * 2)
-        center_abs: Point = Point(env.agent_position)
+        is_agent: np.ndarray = (env_grid == env_interactables['agent'])
+        env_agent_position = Point(np.argwhere(is_agent)[0].tolist())
+        center_abs: Point = env_agent_position
 
         def observe() -> Tensor:
             sd: int = agent.sight_distance
