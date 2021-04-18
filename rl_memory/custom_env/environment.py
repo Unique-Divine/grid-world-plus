@@ -149,6 +149,19 @@ class Env:
             dtype = str).reshape(grid.shape)
         return char_grid
 
+    @classmethod
+    def render_as_grid(cls, char_grid) -> np.ndarray:
+        char_to_interactables = {
+            cls.interactables['_']: "frozen", 
+            cls.interactables['o']: "hole", 
+            cls.interactables['G']: "goal", 
+            cls.interactables['A']: "agent",
+            cls.interactables["'"]: "blocked"} 
+        grid = np.asarray(
+            [char_to_interactables[e] for e in char_grid.flatten()],
+            dtype = str).reshape(char_grid.shape)
+        return grid
+
     # --------------------------------------------------------------------
     # Properties 
     # --------------------------------------------------------------------
@@ -666,9 +679,11 @@ class Observation(torch.Tensor):
     """[summary]
     
     Args:
+        agent (Agent): The agent that's making the observation of the env.
         env (Env): An environment with an agent in it. The environment contains 
             all information needed to get a state for reinforcement learning. 
-        agent (Agent): The agent that's making the observation of the env.
+        env_grid (np.ndarray): 
+        env_char_grid (np.ndarray): 
         dtype: The data type for the observation, which is a torch.Tensor.
 
     Attributes:
@@ -676,10 +691,21 @@ class Observation(torch.Tensor):
         center (Point): The agent's position on the current sight window.
         agent (Agent)
     """
-    def __new__(cls, env: Env, agent: Agent, dtype = torch.float) -> Tensor:
-        env_position_space = env.position_space
-        env_grid = env.grid
-        env_interactables = env.interactables
+    def __new__(cls, agent: Agent, env: Env = None, 
+                env_grid: np.ndarray = None, env_char_grid: np.ndarray = None,
+                dtype = torch.float) -> Tensor:
+        assert env or env_grid or env_char_grid
+        env_interactables = Env().interactables
+        if env_grid is not None:
+            env_position_space = Env(grid_shape=env_grid.shape).position_space
+            env_grid = env_grid
+        elif env_char_grid is not None:
+            env_position_space = Env(grid_shape=env_grid.shape).position_space
+            env_grid = Env.render_as_grid(char_grid = env_char_grid)
+        elif env is not None:
+            env_position_space = env.position_space
+            env_grid = env.grid
+            # env_interactables = env.interactables
         center: Point = Point([agent.sight_distance] * 2)
         center_abs: Point = Point(env.agent_position)
 

@@ -189,7 +189,7 @@ class TestEnvIntegration:
 
             for _ in range(MAX_NUM_SCENES):
                 # Start scene
-                obs = environment.Observation(env, james_bond)
+                obs = environment.Observation(env=env, agent=james_bond)
                 step = env.step(action_idx = random.randrange(8), 
                                 obs = obs)
                 observation, reward, done, info = step
