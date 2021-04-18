@@ -694,7 +694,8 @@ class Observation(torch.Tensor):
     def __new__(cls, agent: Agent, env: Env = None, 
                 env_grid: np.ndarray = None, env_char_grid: np.ndarray = None,
                 dtype = torch.float) -> Tensor:
-        assert env or env_grid or env_char_grid
+        assert ((env is not None) or (env_grid is not None) 
+            or (env_char_grid is not None))
         env_interactables = Env().interactables
         if env_grid is not None:
             env_position_space = Env(grid_shape=env_grid.shape).position_space

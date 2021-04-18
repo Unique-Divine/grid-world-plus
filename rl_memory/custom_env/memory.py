@@ -46,6 +46,6 @@ class Trajectory:
 
     def masked(self) -> List[Memory]: 
         # Mask pct_mask of the memories by converting them to zeros 
-        
+        pass 
 
 
