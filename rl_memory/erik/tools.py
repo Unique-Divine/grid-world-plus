@@ -1,38 +1,69 @@
 import numpy as np
+from IPython.display import clear_output
+import matplotlib.pyplot as plt
 
-def discount_rate(episode_idx, num_episodes,  discount=.95):
-    """[summary]
+config = {
+    "grid_shape": (5, 5),
+    "num_goals": 1,
+    "hole_pct": .99,
+    "view_length": 2
+}
 
-    Args:
-        episode_idx (int): The integer encoding for the episode.
-        num_episodes (int): The total number of episodes.
-        discount (float, optional): Discount factor. Defaults to .95.
-            https://tinyurl.com/discount-stack-exchange
+config0 = {
+    "grid_shape": (5, 5),
+    "num_goals": 1,
+    "hole_pct": .2,
+    "view_length": 2
+}
 
-    Returns:
-        [type]: [description]
+def epsilon(current_episode, num_episodes):
     """
-    assert discount <= 1, "Discount must be between 0 and 1"
-    assert discount >= 0, "Discount must be between 0 and 1"
-    return discount
+    epsilon decays as the current episode gets higher because we want the agent to
+    explore more in earlier episodes (when it hasn't learned anything)
+    explore less in later episodes (when it has learned something)
+    i.e. assume that episode number is directly related to learning
+    """
+    # return 1 - (current_episode/num_episodes)
+    return .5 * .9**current_episode
 
 
-def lr(episode_idx, num_episodes):
-    # 1, .99, .98, .97 ,...., 0
-    lr = 1 - episode_idx/num_episodes
-    assert lr <= 1, "'lr' must be between 0 and 1"
-    assert lr >= 0, "'lr' must be between 0 and 1"
-    return lr
+def discount_reward(rewards, gamma):
+
+    dr = np.zeros(len(rewards))
+    dr[-1] = rewards[-1]
+    for i in range(len(rewards)-2, -1, -1):
+        dr[i] = gamma*dr[i+1] + rewards[i]
+
+    return dr
 
 
-# returns an integer in 0,...,NUM_ACTIONS
-def decision(environment, Q_of_state, ep_num, num_eps, decision_type):
 
-    if decision_type == "epsilon greedy":
-        epsilon = 1 - ep_num/num_eps
+def plot_episode_history(to_graph, title=""):
+    """
+    example input:
+    (list_of_values, comparison/target/baseline value, "title_name"
+    to_graph = [(avg_sharpe_hist, 1, "sharpe"),
+                (avg_wealth_hist, 10, "avg wealth"),
+                (avg_crra_wealth_hist, 2.3, "crra_wealth")]
+    """
 
-        prob = np.random.rand()
-        if prob < epsilon:
-            return environment.action_space.sample()
-        else:
-            return np.argmax(Q_of_state)
+    clear_output(wait=True)
+
+    # Define the figure
+    f, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 7))
+    f.suptitle(title)
+
+    for i, (data, comparison, label) in enumerate(to_graph):
+        ax[i].plot(data, label=label)
+        ax[i].axhline(comparison, c='red', ls='--')
+        ax[i].set_xlabel('Trajectories')
+        ax[i].set_ylabel(f'{label}')
+        ax[i].legend(loc='upper right')
+
+        try:
+            x0 = range(len(data))
+            z = np.polyfit(x0, data, 1)
+            p = np.poly1d(z)
+            ax[i].plot(x0, p(x0), "--", label='trend')
+        except:
+            print('')

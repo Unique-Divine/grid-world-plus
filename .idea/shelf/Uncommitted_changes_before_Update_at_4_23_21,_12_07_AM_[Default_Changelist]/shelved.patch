@@ -1,0 +1,1150 @@
+Index: rl_memory/custom_env/environment.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>\nimport numpy as np\nimport torch\nimport os, sys\nimport copy\nimport random\nimport collections\nimport copy\nfrom torch._C import Value\ntry:\n    import rl_memory\nexcept:\n    exec(open('__init__.py').read()) \n    import rl_memory\nfrom rl_memory.custom_env.agents import Agent\nfrom typing import List, Union, Generator, NamedTuple\nfrom torch import Tensor\nimport warnings; warnings.filterwarnings(\"ignore\")\n\nclass Point(np.ndarray):\n    \"\"\"A 1D np.ndarray of size 2 that contains the row and column\n    indices for a point in the environment.  \n\n    Examples\n    --------\n    >>> p1 = Point(1, 2)\n    >>> p1\n    array([1, 2], dtype=int16)\n    >>> p2 = Point([1, 3])\n    >>> p2\n    array([1, 3], dtype=int16)\n    >>> p1 == p2\n    array([ True, False])\n    \"\"\"\n    def __new__(cls, *args):\n        if len(args) == 2:\n            self = np.asarray([*args], dtype=np.int16)\n        elif (((len(args) == 1) and isinstance(args[0], list))    \n              or ((len(args) == 1) and isinstance(args[0], tuple))):\n            self = np.asarray(args[0], dtype=np.int16)\n        else:\n            raise ValueError(f\"args: {args}, type(args[0]): {type(args[0])}\")\n        return self\n\nclass Env:\n    \"\"\"A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with\n    a varying starting position for the agent, holes, and goal(s). Movements are\n    deterministic rather than stochastic and each environment is solvable, so a\n    'perfect' agent can get reward 1 on every episode.\n    \n    Args:\n        grid_shape (list-like): The matrix dimensions of the environment. \n        hole_pct (float): The probability of any open spot to be a hole.\n            An \"open spot\" is any spot on the grid that is not an agent, \n            goal, or blocked.   \n        n_goals (int): Defaults to 1.\n    \n    Attributes:\n        interactables (dict): key-value pairs for the various items that can \n            take up space on the frozen lake. This would be the agent, goal, \n            holes, etc. The 'blocked' key refers to spaces that can't \n            be traversed.\n        grid (np.ndarray): A matrix with the encodings for each interactable. \n\n    Examples:\n    ---------\n    >>> from agent import Agent\n    >>> env = Env() # initializes an environment\n    >>> env.reset() # creates or resets the environment\n    >>> james_bond = Agent(4)\n    # An episode could then look like:\n    ```\n    done = False\n    while done!= True:  \n        s = State(env, james_bond) # the state of Bond in the environment\n        random_action = random.randrange(8)\n        step = env.step(action_idx = random_action, state = s)\n        observation, reward, done, info = step\n    replay_buffer.append( ... )\n    ```\n    \"\"\"\n    interactables = {'frozen': 0, 'hole': 1, 'goal': 2, \n                              'agent': 7, 'blocked': 3}\n\n    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):\n        # Set board dimensions and initalize to an \"empty\" grid. \n        if len(grid_shape) != 2:\n            raise ValueError(\"'grid_shape' must be a list-like of length 2.\")\n        self.empty_grid = np.full(shape = grid_shape, \n                            fill_value = self.interactables['frozen'], \n                            dtype = np.int32)\n        self.grid = copy.deepcopy(self.empty_grid)\n        assert self.grid.shape == grid_shape\n\n        # Initialize grid helper parameters  \n        self._position_space: List[list] = self.position_space\n        self.action_space: List[Point] = self.get_action_space()\n        self.open_positions: List[list] = self._position_space\n        self._agent_position: List[int] = self.agent_position \n        self.goal_position: List[int] = None\n\n        # Initial grid - for env.reset()\n        self.agent_start: List[int] = None\n        self.valid_path: List[List[int]]\n        self._env_start: np.ndarray = copy.deepcopy(self.empty_grid)\n\n        # Declare board paramteres as class attributes\n        if (hole_pct < 0) or (hole_pct >= 1):\n            raise ValueError(\"'hole_pct' must be between 0 and 1.\") \n        self.hole_pct = hole_pct\n        self.n_goals = n_goals\n\n    def __repr__(self) -> str:\n        return f\"Env:\\n{self.render_as_char(self.grid)}\"\n\n    def __str__(self) -> str:\n        return str(self.grid)\n\n    def __eq__(self, other) -> bool:\n        checks: bool\n        if isinstance(other, np.ndarray):\n            checks = np.all(self.grid == other)\n        elif isinstance(other, Env):\n            checks = np.all([\n                np.all(self.grid == other.grid), \n                self.agent_start == other.agent_start, \n                self.open_positions == other.open_positions,\n                self.valid_path == other.valid_path,\n                self.n_goals == other.n_goals,\n                self.hole_pct == other.hole_pct, ])\n        else:\n            raise ValueError(f\"{other} must be an environment instance.\")\n        return checks\n\n    def render(self):\n        raise NotImplementedError\n        pass\n    \n    @classmethod\n    def render_as_char(cls, grid) -> np.ndarray:\n        interactables_to_char = {\n            cls.interactables['frozen']: \"_\", \n            cls.interactables['hole']: \"o\", \n            cls.interactables['goal']: \"G\", \n            cls.interactables['agent']: \"A\",\n            cls.interactables['blocked']: \"'\"} \n        char_grid = np.asarray(\n            [interactables_to_char[e] for e in grid.flatten()],\n            dtype = str).reshape(grid.shape)\n        return char_grid\n\n    # --------------------------------------------------------------------\n    # Properties \n    # --------------------------------------------------------------------\n    def get_action_space(self) -> List[Point]:\n        action_space: List[list] = [[-1, 1], [-1, 0], [-1, -1], [0, -1],\n                                    [1, -1], [1, 0], [1, 1], [0, 1]]\n        action_space: List[Point] = [Point(p) for p in action_space]\n        return action_space\n\n    @property\n    def position_space(self) -> List[List[int]]:\n        row_dim, col_dim = self.grid.shape\n        position_space: List[list] = []\n        for i in range(row_dim):\n            for j in range(col_dim):\n                position_space.append([i, j])\n        return position_space\n    \n    @position_space.deleter\n    def position_space(self):\n        raise AttributeError(\"`position_space` attribute of class \"\n            + \"`Env` is read-only.\")\n\n    @property\n    def agent_position(self) -> List[int]:\n        is_agent: np.ndarray = (self.grid == self.interactables['agent'])\n        if np.any(is_agent):\n            return np.argwhere(is_agent)[0].tolist() \n        else:\n            return None\n\n    @property\n    def env_start(self):\n        return self._env_start\n    @env_start.setter\n    def env_start(self, grid):\n        self._env_start = grid\n    @env_start.deleter\n    def env_start(self):\n        self._env_start = None\n\n    # --------------------------------------------------------------------\n    # Helper functions for creating an env from scratch\n    # --------------------------------------------------------------------\n    \n    def randomly_select_open_position(self) -> List[int]:\n        position: List[int] = random.choice(self.open_positions)\n        return position\n\n    def set_agent_goal(self):\n        # positions_ag: The positions for the agent and goal(s)\n        positions_ag: List[list] = []\n\n        # Randomly select starting point for agent.\n        agent_start = self.randomly_select_open_position()\n        self.agent_start = agent_start\n        self.open_positions.remove(agent_start) \n        positions_ag.append(agent_start)\n\n        # Randomly select starting point for each goal.\n        for _ in np.arange(self.n_goals):\n            goal_position = self.randomly_select_open_position()\n            self.open_positions.remove(goal_position)\n            positions_ag.append(goal_position)\n        self.goal_position = goal_position\n        assert len(positions_ag) >= 2, \"We expect at least 1 agent and 1 goal.\"\n        \n        # Label the agent on the grid.\n        x, y = positions_ag[0]\n        self.grid[x, y] = self.interactables['agent']\n\n        # Label the goals on the grid.\n        for goal_idx in np.arange(self.n_goals):\n            x, y = positions_ag[goal_idx + 1]\n            self.grid[x, y] = self.interactables['goal'] \n\n    def set_holes(self, hole_pct: float = None):\n        \"\"\"[summary]\n\n        Args:\n            hole_pct (float, optional): The probability that any open spot is a \n                hold. An \"open spot\" is any spot on the grid that is not an \n                agent, goal, or blocked. Defaults to 'env.hole_pct' attribute.\n                See the first line of this method to understand the default \n                behavior.                 \n        \"\"\"\n        hole_pct = self.hole_pct if (hole_pct == None) else hole_pct\n        n_holes: int = int(len(self.open_positions) * self.hole_pct)\n        for _ in range(n_holes):\n            hole_position = self.randomly_select_open_position()\n            self.open_positions.remove(hole_position)\n            x, y = hole_position\n            self.grid[x, y] = self.interactables['hole']\n\n\n\n    # --------------------------------------------------------------------\n    # Functions for the user\n    # --------------------------------------------------------------------\n\n    def create_new(self):\n        \"\"\"Place all of the interactables on the grid to create a new env. \n        Changes the 'env.env_start' attribute, the environment you reset to\n        when calling 'env.reset'. \n        \n        Examples:\n        --------\n        >>> env0 = Env()\n        >>> env0.reset() # Initializes board with interactable env objects.\n        You can also call 'env0.create_new()' instead of 'env0.reset()'\n        >>> env1 = env0.create_new() # randomly generate new env\n        \"\"\"\n\n        def setup_blank_env(env):\n            env.set_agent_goal() # Create agent and goals        \n            # Clear a path for the agent\n            valid_path = PathMaker(env).make_valid_path()\n            env.valid_path = valid_path\n            for position in valid_path:\n                if position in env.open_positions:\n                    env.open_positions.remove(position)\n            # Place holes in some of the empty spaces\n            env.set_holes()\n        \n        # Save initial state if this is the first time create() has been called.\n        if np.all(self.env_start == self.empty_grid):\n            setup_blank_env(env = self)\n            self.env_start: np.ndarray = self.grid\n        else: # Make a new environment and save that as the initial state.\n            # Create new, blank environment\n            new_env = Env(grid_shape = self.grid.shape,\n                          hole_pct = self.hole_pct,\n                          n_goals = self.n_goals)\n            assert np.all(new_env.env_start == self.empty_grid)\n            any_holes: bool = lambda grid: np.any(\n                grid == self.interactables['hole'])\n            # assert any_holes(new_env.grid) == False, (\n            #     \"The 'new_env' should start out frozen after initialization.\")\n            \n            # Place agent, goal(s), and holes on 'new_env'. \n            setup_blank_env(env = new_env)\n            # if self.hole_pct > 0:\n            #     assert any_holes(new_env.grid) == True\n            \n            # Set 'new_env' initial grid state\n            new_env.env_start = new_env.grid\n            assert np.any(self.env_start != self.empty_grid)\n            \n            # Reset to this new environment\n            self.env_start = copy.deepcopy(new_env.grid)\n            self.grid = copy.deepcopy(self.env_start)\n\n        # TODO: Check that there are holes on the grid.\n        # TODO: Check that none of the positions in valid path now have holes.\n\n    def reset(self):\n        \"\"\"Resets the environment grid to 'env_start', the initial environment\n        if it has been set. If 'env_start' hasn't been set, this method \n        randomly generates a new env and declares that to be 'env_start'.  \n\n        Returns:\n            Env: The initial environment.\n        \"\"\"        \n        start_is_not_empty: bool = not np.all(self.env_start == self.empty_grid)\n        start_is_empty = not start_is_not_empty\n        if isinstance(self.env_start, np.ndarray) and start_is_not_empty:\n            self.grid = copy.deepcopy(self.env_start)\n        elif isinstance(self.env_start, type(None)) or start_is_empty:\n            self.create_new()\n        else:\n            raise AttributeError(\"'env_start' must be an ndarray or None.\")\n\n    def step(self, action_idx: int, obs) -> NamedTuple:\n        action: Point = self.action_space[action_idx]\n        desired_position: Point = obs.center + action\n        new_x, new_y = desired_position\n        interactable: int = obs[new_x, new_y].item()\n        \n        def move():\n            x, y = self.agent_position\n            new_x, new_y = Point(self.agent_position) + action\n            self.grid[x, y] = self.interactables['frozen']\n            self.grid[new_x, new_y] = self.interactables['agent']\n\n        def unable_to_move():\n            pass\n\n        observation: np.ndarray\n        reward: float\n        done: bool \n        info: str\n        \n        if interactable == self.interactables['frozen']:\n            move()\n            reward = 0 \n            done = False\n        elif interactable == self.interactables['hole']:\n            move()\n            reward = -1\n            done = True\n        elif interactable == self.interactables['goal']:\n            move()\n            reward = 1\n            done = True\n        elif interactable == self.interactables['blocked']:\n            unable_to_move()\n            reward = -0.1\n            done = False\n        elif interactable == self.interactables['agent']:\n            raise NotImplementedError(\"There shouldn't be two agents yet.\")\n            # TODO\n        else:\n            raise ValueError(f\"interactable: '{interactable}' is not in \"\n                +f\"interactables: {self.interactables}\")\n        \n        next_observation = Observation(env = self, agent = obs.agent)\n        info = \"\"\n        Step = collections.namedtuple(\n            \"Step\", [\"next_obs\", \"reward\", \"done\", \"info\"])\n        return Step(next_observation, reward, done, info)\n        \nclass PathMaker:\n    def __init__(self, env: Env) -> None:\n        self.env = env\n        self.valid_path: list = None \n    \n    def init_unexplored_spots(self) -> List[np.ndarray]: \n        \"\"\"Initialize the `unexplored_spots` attribute for the pathfinding\n        algorithm. Unexplored spots are everything on the board that isn't an\n        agent, hole, or blocked.\n        \n        Returns:\n            unexplored_spots (List[list]): List of coordinate pairs to be used\n                as indices of the env.grid matrix.\"\"\"       \n        env = self.env\n        # Explored spots: Locations in the grid with agent or hole\n        is_agent: np.ndarray = (env.grid == env.interactables['agent'])\n        is_hole: np.ndarray = (env.grid == env.interactables['hole'])\n        is_explored = (is_agent | is_hole)\n        explored_spots: List[list] = [A.tolist() for A in np.argwhere(is_explored)]\n        assert len(env.position_space) >= len(explored_spots)\n\n        # Store unexplored spots \n        unexplored_spots: list = []\n        unexplored_spots[:] = [p for p in env.position_space\n                               if (p not in explored_spots)]\n        return [np.array(spot) for spot in unexplored_spots] \n\n    def generate_shifted_spots(self, spot) -> Generator[List[int], None, None]:\n        \"\"\"Generator for a viable position adjacent to the input position.\n\n        Args:\n            spot (list): An ordered pair (x, y) for a particular matrix element\n                on the grid. \n        Returns:\n            shifted_spot (List[list]): A position that neighbors the input \n                'spot' argument. This shifted coordinate is randomly selected\n                from the available options on the 'env.grid'. \n        \"\"\"\n        nsew_shifts = [[1, 0], [0, 1], [0, -1], [-1, 0]]\n        cross_shifts = [[1, 1], [1, -1], [-1, 1], [-1, -1]]  \n        shifts: List[list] = nsew_shifts + cross_shifts\n        shifted_spots = []\n        x_0, y_0 = spot\n        for shift in shifts:\n            dx, dy = shift\n            x, y = x_0 + dx, y_0 + dy \n            shifted_spot = [x, y]\n            if shifted_spot in self.env.position_space:\n                shifted_spots.append(shifted_spot)\n        random.shuffle(shifted_spots) # randomize the order of the shifts\n        for shifted_spot in shifted_spots:\n            yield shifted_spot\n    \n    def random_steps(self, n_steps: int, starting_spot):\n        \"\"\"Helper function for 'random_walk()'. This generates a step in the\n        discrete random walk.\n\n        Args:\n            n_steps (int): Number of steps\n            starting_spot (List[int]): A position (x, y) on the env.grid \n\n        Yields:\n            shifted_spot (List[int]): Position of the next random step. \n        \"\"\"\n        spot = starting_spot\n        for _ in range(n_steps):\n            shifted_spot: List[int]\n            for shifted_spot in self.generate_shifted_spots(spot):\n                yield shifted_spot\n                spot = shifted_spot\n                break\n    \n    def random_walk(self, n_steps: int, \n                    start: List[Union[int, List[int]]]) -> List[List[int]]:\n        assert isinstance(start, list), \"'start' must be a list.\"\n        assert len(start) > 0, \\\n            \"'start' cannot be empty. The random walk needs an starting point.\"\n        if isinstance(start[0], int):\n            assert len(start) == 2, \"...\" # TODO\n            spot = start\n            path = []; path.append(spot)\n        elif isinstance(start[0], list):\n            assert np.all([len(pt) == 2 for pt in start]), (\n                \"The current value for 'start' has type List(list). As a list \"\n                + \"of ordered pairs, each of element of 'start' should have a \"\n                + \"length of 2. \")\n            spot = start[-1]\n            path = copy.deepcopy(start)\n        else:\n            raise ValueError(\"'start' must have type List[int] or List[list]\")\n\n        starting_spot = spot        \n        for step in self.random_steps(n_steps, starting_spot):\n            path.append(step)\n            \n        # for _ in range(n_steps):\n        #     shifted_spot: List[int]\n        #     for shifted_spot in self.generate_shifted_spots(spot):\n        #         path.append(shifted_spot)\n        #         spot = shifted_spot\n        #         break\n        proper_path_length: bool = ((len(path) == n_steps + 1) \n                                    or (len(path) == n_steps + len(start)))\n        assert proper_path_length, (\"'path' is too short. \"\n            + f\"len(path): {len(path)}, n_steps: {n_steps}\")\n        return path\n\n    def diag_path(self, starting_pt: List[int], ending_pt: List[int]):\n        \"\"\"[summary] TODO\n\n        Args:\n            starting_pt (List[int]): [description]\n            ending_pt (List[int]): [description]\n\n        Returns:\n            [type]: [description]\n        \"\"\"\n        displacement = np.array(ending_pt) - np.array(starting_pt)\n        if np.all(displacement == 0):\n            # Case 1: 'ending_pt' has already been reached\n            return [starting_pt]\n        elif np.any(displacement == 0):\n            # Case 2: 'displacement' is vertical or horizontal\n            return self.straight_shot([starting_pt], ending_pt)\n        \n        directions = (displacement / np.abs(displacement)).astype(int) \n        magnitude: int = np.min(np.abs(displacement))\n        diag = np.full(shape = (magnitude + 1, 2), fill_value = starting_pt)\n        for row_idx in range(1, magnitude + 1):\n            diag[row_idx] = diag[row_idx - 1] + directions\n        diag_path = [pt.tolist() for pt in diag]\n\n        assert diag_path[0] == starting_pt, \\\n            \"'diag_path[0]' should be the starting point.\" \n        assert np.any(np.array(diag_path[-1]) == np.array(ending_pt)), \\\n            (\"At least one component of the last pt in 'diag_path' should \"\n            + \"match the corresponding component in 'ending_pt'\")\n        return diag_path\n\n    @staticmethod\n    def straight_shot(diag_path: List[List[int]], \n                        ending_pt: List[int]) -> List[List[int]]:\n        \"\"\"[summary] TODO\n\n        Args:\n            diag_path (List[List[int]]): [description]\n            ending_pt (List[int]): [description]\n\n        Returns:\n            List[List[int]]: [description]\n        \"\"\"\n        starting_pt = diag_path[-1]\n        displacement = np.array(ending_pt) - np.array(starting_pt)\n        assert np.any(displacement == 0), \\\n            \"At least one of the displacement components should be 0.\"\n        if np.all(displacement == 0):\n            # 'ending_pt' has already been reached on 'diag_path'.\n            return diag_path[1:]\n        directions = np.where(\n            displacement == 0, 0, \n            displacement / np.abs(displacement)).astype(int)\n        magnitude = np.max(np.abs(displacement))\n        straight = np.full(shape = (magnitude + 1, 2), \n                            fill_value = starting_pt)\n        for row_idx in range(1,  magnitude + 1):\n            straight[row_idx] = straight[row_idx - 1] + directions\n        straight_path = [pt.tolist() for pt in straight]\n        assert straight_path[-1] == ending_pt, (\"'straight_path' is not \"\n            + \"ending at 'ending_pt'.\")\n        return straight_path\n\n    def shortest_path(self, path_a: list, \n                      path_b: list) -> List[Union[List, int]]:\n        \"\"\"Find the shortest path between the ends of two paths on the env.grid.\n\n        Args:\n            path_a (list): A position of type List[int] or list of positions of \n                type List[List[int]] on the env.grid. \n            path_b (list): A position of type List[int] or list of positions of \n                type List[List[int]] on the env.grid.\n                \n        Raises:\n            ValueError: If 'path_a' and 'path_b' is not a list\n            ValueError: If the elements of the paths have the wrong type\n\n        Returns:\n            List[Union[List, int]]: The shortest path between the endpoints of \n                'path_a' and 'path_b'. \n        \"\"\"\n        # Verify that both paths are lists.\n        assert np.all([isinstance(path, list) for path in [path_a, path_b]]), \\\n            \"Both 'path_a' and 'path_b' must be lists.\"  \n        # Verify that path_a is type List[int] or List[List[int]]\n        if isinstance(path_a[0], int):\n            pt_a = path_a\n        elif isinstance(path_a[0], list):\n            pt_a = path_a[-1]\n        else:\n            raise ValueError(\"'path_a' must be a position or list of positions\")\n        # Verify that path_b is type List[int] or List[List[int]]\n        if isinstance(path_b[0], int):\n            pt_b = path_b\n        elif isinstance(path_b[0], list):\n            pt_b = path_b[-1]\n        else:\n            raise ValueError(\"'path_b' must be a position or list of positions\")\n\n        # Compute shortest path\n        diag = self.diag_path(pt_a, pt_b)\n        straight = self.straight_shot(diag, pt_b)\n        if [diag[0], diag[-1]] == [pt_a, pt_b]:\n            shortest_path = diag\n        elif [straight[0], straight[-1]] == [pt_a, pt_b]:\n            shortest_path = straight\n        else:\n            shortest_path = diag + straight[1:]\n        try:\n            assert [shortest_path[0], shortest_path[-1]] == [pt_a, pt_b]\n        except:\n            breakpoint()\n        return shortest_path\n\n    def make_valid_path(self, rw_pct = 0.15, sp_pct = 0.15) -> np.ndarray:\n        \"\"\"Specifies a guaranteed path without holes between the agent and a \n        goal. By setting the holes on the environment outside of 'valid_path', \n        we can guarantee that the environment is solvable.\n\n        Args:\n            rw_pct (float): \"Random walk percentage\". The percentage of the \n                length of 'env.grid' that will be taken as random walk steps.\n                Directly affects the variable 'rw_steps'.\n            sp_pct (float): \"Shortest path percentage\". The percentage of the \n                length of 'env.grid' that will be taken as shortest path steps.\n                Directly affects the variable 'sp_steps'.  \n        Returns:\n            valid_path (List[List[int]]): List of ordered pairs that consistute a \n                guaranteed successful path for the agent. \n        \"\"\"\n        # TODO: Generate valid path\n        agent_position = self.env.agent_position\n        goal_position = self.env.goal_position \n        path_a, path_g = agent_position, goal_position\n        rw_steps: int = round(rw_pct * len(self.env.grid))\n        sp_steps: int = round(0.5 * sp_pct * len(self.env.grid))\n        rw_steps = 1 if rw_steps < 1 else rw_steps\n        sp_steps = 1 if sp_steps < 1 else sp_steps\n\n        done: bool = False\n        while done != True: # Run until 'path_a' reaches the goal\n            \n            # Random walk from both agent and goal starting positions\n            path_a, path_g = [self.random_walk(n_steps = rw_steps , start = path) \n                            for path in [path_a, path_g]]\n\n            # Get shortest path b/w the endpts of both paths\n            shortest = self.shortest_path(path_a, path_g)\n            if len(shortest) <= 2:\n                path_a.append(shortest[-1])\n                path_a += path_g[::-1]\n                done = True\n                try:\n                    assert [path_a[0], path_a[-1]] == [agent_position, goal_position] \n                except:\n                    print('case 1')\n                    breakpoint()\n            elif (len(shortest) - 2) <= (2 * sp_steps):\n            # If shortest path steps 'sp_steps' spans shortest \n                path_a += shortest[1:-1]\n                path_a += path_g[::-1]\n                done = True\n                try:\n                    assert [path_a[0], path_a[-1]] == [agent_position, goal_position] \n                except:\n                    print('case 2')\n                    breakpoint()\n            else:\n                # Follow the shortest path for sp_steps\n                front_of_shortest = shortest[1:1 + sp_steps]\n                back_of_shortest = shortest[-(1 + sp_steps): -1]\n                path_a += front_of_shortest\n                path_g += back_of_shortest[::-1]\n        \n        # TODO: Verify that optimal_g connects to path_g and optimal_a connects to path_a\n        \n        # TODO: Check that the valid path is actually valid -> write test:\n        # 1. Verify that valid_path starts with agent position and ends with goal\n        # 2. Verify that the shifts between each position in the path are <= 1.\n        valid_path: List[List[int]] = path_a\n        return valid_path\n\nclass Observation(torch.Tensor):\n    \"\"\"[summary]\n    \n    Args:\n        env (Env): An environment with an agent in it. The environment contains \n            all information needed to get a state for reinforcement learning. \n        agent (Agent): The agent that's making the observation of the env.\n        dtype: The data type for the observation, which is a torch.Tensor.\n\n    Attributes:\n        center_abs (Point): The agent's on the 'env.grid'.\n        center (Point): The agent's position on the current sight window.\n        agent (Agent)\n    \"\"\"\n    def __new__(cls, env: Env, agent: Agent, dtype = torch.float) -> Tensor:\n        env_position_space = env.position_space\n        env_grid = env.grid\n        env_interactables = env.interactables\n        center: Point = Point([agent.sight_distance] * 2)\n        center_abs: Point = Point(env.agent_position)\n\n        def observe() -> Tensor:\n            sd: int = agent.sight_distance\n            observation = np.empty(\n                shape= [agent.sight_distance * 2 + 1] * 2, \n                dtype = np.int16)\n            row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)\n            col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)\n            def views(row_view, col_view) -> Generator:\n                for row_idx in row_view:\n                    for col_idx in col_view:\n                        displacement = Point(row_idx, col_idx) - center_abs\n                        relative_position: Point = center + displacement\n                        rel_row, rel_col = relative_position\n                        yield row_idx, col_idx, rel_row, rel_col\n            \n            for view in views(row_view, col_view):\n                row_idx, col_idx, rel_row, rel_col = view \n                if [row_idx, col_idx] in env_position_space:\n                    observation[rel_row, rel_col] = env_grid[row_idx, col_idx]\n                else:\n                    observation[rel_row, rel_col] = env_interactables[\n                        'blocked']\n            return torch.from_numpy(observation).float()\n\n        obs: Tensor = observe()\n        setattr(obs, \"center\", center)\n        setattr(obs, \"center_abs\", center_abs)\n        setattr(obs, \"agent\", agent)\n\n        def as_color_img(obs: Tensor, env = env):\n            pass # TODO \n        return obs\n    \n    def __repr__(self):\n        obs_grid = self.numpy()\n        return f\"{Env.render_as_char(grid = obs_grid)}\"\n\nclass State(list):\n    def __new__(cls, observations: List[Observation], K: int = 2) -> list:\n        assert cls.check_for_valid_args(observations, K)\n\n        state: List[Observation]\n        if K == 1:\n            state = observations\n        if len(observations) < K:\n            state = observations\n            duplications = K - len(observations)\n            for _ in range(duplications):\n                state.insert(0, observations[0])\n        return state\n        \n    @classmethod\n    def check_for_valid_args(cls, observations, K):\n        if len(observations) < 1:\n            raise ValueError(\"Attribute 'observations' (list) is empty.\") \n        elif K < 1:\n            raise ValueError(\"Attribute 'K' (int) is must be >= 1.\")\n        else:\n            return True
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/custom_env/environment.py b/rl_memory/custom_env/environment.py
+--- a/rl_memory/custom_env/environment.py	(revision 3b96719733e370aeddc0b6b185d3106aa7eabbf3)
++++ b/rl_memory/custom_env/environment.py	(date 1619146887670)
+@@ -64,7 +64,7 @@
+ 
+     Examples:
+     ---------
+-    >>> from agent import Agent
++    >>> from agent import Agent # !! outdated import - now its from pg_cnn import RLAlgorithms
+     >>> env = Env() # initializes an environment
+     >>> env.reset() # creates or resets the environment
+     >>> james_bond = Agent(4)
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"ChangeListManager\">\n    <list default=\"true\" id=\"f1cb97f6-3ad5-4d7e-a170-7c4f8f22cacb\" name=\"Default Changelist\" comment=\"\">\n      <change afterPath=\"$PROJECT_DIR$/rl_memory/actor.py\" afterDir=\"false\" />\n      <change afterPath=\"$PROJECT_DIR$/rl_memory/erik/__init__.py\" afterDir=\"false\" />\n      <change afterPath=\"$PROJECT_DIR$/rl_memory/memory.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/rl_memory/models/a2c/actor.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/rl_memory/models/a2c/actor.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/rl_memory/models/a2c/actor_critic.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/rl_memory/models/a2c/actor_critic.py\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/rl_memory/pg.py\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/rl_memory/pg.py\" afterDir=\"false\" />\n    </list>\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\n  </component>\n  <component name=\"FileTemplateManagerImpl\">\n    <option name=\"RECENT_TEMPLATES\">\n      <list>\n        <option value=\"Python Script\" />\n      </list>\n    </option>\n  </component>\n  <component name=\"Git.Settings\">\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\n  </component>\n  <component name=\"GitSEFilterConfiguration\">\n    <file-type-list>\n      <filtered-out-file-type name=\"LOCAL_BRANCH\" />\n      <filtered-out-file-type name=\"REMOTE_BRANCH\" />\n      <filtered-out-file-type name=\"TAG\" />\n      <filtered-out-file-type name=\"COMMIT_BY_MESSAGE\" />\n    </file-type-list>\n  </component>\n  <component name=\"ProjectId\" id=\"1pOn9iOyaRouLPaeCD2QqGXbUZ2\" />\n  <component name=\"ProjectLevelVcsManager\" settingsEditedManually=\"true\">\n    <ConfirmationsSetting value=\"2\" id=\"Add\" />\n  </component>\n  <component name=\"ProjectViewState\">\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\n    <option name=\"showLibraryContents\" value=\"true\" />\n  </component>\n  <component name=\"PropertiesComponent\">\n    <property name=\"ASKED_ADD_EXTERNAL_FILES\" value=\"true\" />\n    <property name=\"RunOnceActivity.OpenProjectViewOnStart\" value=\"true\" />\n    <property name=\"RunOnceActivity.ShowReadmeOnStart\" value=\"true\" />\n    <property name=\"last_opened_file_path\" value=\"$PROJECT_DIR$/rl_memory/models/a2c\" />\n    <property name=\"settings.editor.selected.configurable\" value=\"com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable\" />\n  </component>\n  <component name=\"RecentsManager\">\n    <key name=\"CopyFile.RECENT_KEYS\">\n      <recent name=\"$PROJECT_DIR$/rl_memory/models/a2c\" />\n    </key>\n    <key name=\"MoveFile.RECENT_KEYS\">\n      <recent name=\"$PROJECT_DIR$/rl_memory\" />\n      <recent name=\"$PROJECT_DIR$/rl_memory/erik\" />\n    </key>\n  </component>\n  <component name=\"RunManager\" selected=\"Python.pg (1)\">\n    <configuration name=\"actor\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"RL_memory\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$/rl_memory\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/rl_memory/actor.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"dql\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"RL_memory\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/dql.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"memory\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"RL_memory\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$/rl_memory\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/rl_memory/memory.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"pg (1)\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"RL_memory\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$/rl_memory\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/rl_memory/pg.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"pg\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"RL_memory\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/pg.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"pg\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"RL_memory\" />\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\n      <option name=\"PARENT_ENVS\" value=\"true\" />\n      <envs>\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\n      </envs>\n      <option name=\"SDK_HOME\" value=\"\" />\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$/rl_memory/erik\" />\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/rl_memory/pg.py\" />\n      <option name=\"PARAMETERS\" value=\"\" />\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\n      <option name=\"MODULE_MODE\" value=\"false\" />\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\n      <option name=\"INPUT_FILE\" value=\"\" />\n      <method v=\"2\" />\n    </configuration>\n    <recent_temporary>\n      <list>\n        <item itemvalue=\"Python.pg (1)\" />\n        <item itemvalue=\"Python.memory\" />\n        <item itemvalue=\"Python.actor\" />\n        <item itemvalue=\"Python.pg\" />\n        <item itemvalue=\"Python.dql\" />\n      </list>\n    </recent_temporary>\n  </component>\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\n  <component name=\"TaskManager\">\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\n      <changelist id=\"f1cb97f6-3ad5-4d7e-a170-7c4f8f22cacb\" name=\"Default Changelist\" comment=\"\" />\n      <created>1615062856365</created>\n      <option name=\"number\" value=\"Default\" />\n      <option name=\"presentableId\" value=\"Default\" />\n      <updated>1615062856365</updated>\n    </task>\n    <task id=\"LOCAL-00001\" summary=\"mar 6 525 pm\">\n      <created>1615069532214</created>\n      <option name=\"number\" value=\"00001\" />\n      <option name=\"presentableId\" value=\"LOCAL-00001\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1615069532214</updated>\n    </task>\n    <task id=\"LOCAL-00002\" summary=\"progress\">\n      <created>1617320435168</created>\n      <option name=\"number\" value=\"00002\" />\n      <option name=\"presentableId\" value=\"LOCAL-00002\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1617320435168</updated>\n    </task>\n    <task id=\"LOCAL-00003\" summary=\"run pg in debugger and stop after every episode to recreate error where environment deletes goals once they are found\">\n      <created>1617559506609</created>\n      <option name=\"number\" value=\"00003\" />\n      <option name=\"presentableId\" value=\"LOCAL-00003\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1617559506609</updated>\n    </task>\n    <task id=\"LOCAL-00004\" summary=\"mar 6 525 pm\">\n      <created>1617561372614</created>\n      <option name=\"number\" value=\"00004\" />\n      <option name=\"presentableId\" value=\"LOCAL-00004\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1617561372614</updated>\n    </task>\n    <task id=\"LOCAL-00005\" summary=\"changed import statement in environment&#10;added update method to actor &#10;implemented train test for policy gradient pg.py\">\n      <created>1617644967045</created>\n      <option name=\"number\" value=\"00005\" />\n      <option name=\"presentableId\" value=\"LOCAL-00005\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1617644967045</updated>\n    </task>\n    <task id=\"LOCAL-00006\" summary=\"changed import statement in environment&#10;added update method to actor &#10;implemented train test for policy gradient pg.py\">\n      <created>1617747686015</created>\n      <option name=\"number\" value=\"00006\" />\n      <option name=\"presentableId\" value=\"LOCAL-00006\" />\n      <option name=\"project\" value=\"LOCAL\" />\n      <updated>1617747686015</updated>\n    </task>\n    <option name=\"localTasksCounter\" value=\"7\" />\n    <servers />\n  </component>\n  <component name=\"Vcs.Log.Tabs.Properties\">\n    <option name=\"oldMeFiltersMigrated\" value=\"true\" />\n  </component>\n  <component name=\"VcsManagerConfiguration\">\n    <option name=\"ADD_EXTERNAL_FILES_SILENTLY\" value=\"true\" />\n    <MESSAGE value=\"progress\" />\n    <MESSAGE value=\"run pg in debugger and stop after every episode to recreate error where environment deletes goals once they are found\" />\n    <MESSAGE value=\"mar 6 525 pm\" />\n    <MESSAGE value=\"changed import statement in environment&#10;added update method to actor &#10;implemented train test for policy gradient pg.py\" />\n    <option name=\"LAST_COMMIT_MESSAGE\" value=\"changed import statement in environment&#10;added update method to actor &#10;implemented train test for policy gradient pg.py\" />\n  </component>\n  <component name=\"XDebuggerManager\">\n    <breakpoint-manager>\n      <breakpoints>\n        <line-breakpoint enabled=\"true\" suspend=\"THREAD\" type=\"python-line\">\n          <url>file://$PROJECT_DIR$/test.py</url>\n          <line>156</line>\n          <option name=\"timeStamp\" value=\"17\" />\n        </line-breakpoint>\n        <line-breakpoint enabled=\"true\" suspend=\"THREAD\" type=\"python-line\">\n          <url>file://$PROJECT_DIR$/flQ_graph.py</url>\n          <line>26</line>\n          <option name=\"timeStamp\" value=\"23\" />\n        </line-breakpoint>\n        <line-breakpoint enabled=\"true\" suspend=\"THREAD\" type=\"python-line\">\n          <url>file://$PROJECT_DIR$/networkx_debug.py</url>\n          <line>32</line>\n          <option name=\"timeStamp\" value=\"25\" />\n        </line-breakpoint>\n        <line-breakpoint enabled=\"true\" suspend=\"THREAD\" type=\"python-line\">\n          <url>file://$PROJECT_DIR$/rl_memory/pg.py</url>\n          <line>58</line>\n          <option name=\"timeStamp\" value=\"26\" />\n        </line-breakpoint>\n      </breakpoints>\n      <default-breakpoints>\n        <breakpoint type=\"python-exception\">\n          <properties notifyOnTerminate=\"true\" exception=\"BaseException\">\n            <option name=\"notifyOnTerminate\" value=\"true\" />\n          </properties>\n        </breakpoint>\n      </default-breakpoints>\n    </breakpoint-manager>\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision 3b96719733e370aeddc0b6b185d3106aa7eabbf3)
++++ b/.idea/workspace.xml	(date 1619150737211)
+@@ -2,13 +2,27 @@
+ <project version="4">
+   <component name="ChangeListManager">
+     <list default="true" id="f1cb97f6-3ad5-4d7e-a170-7c4f8f22cacb" name="Default Changelist" comment="">
+-      <change afterPath="$PROJECT_DIR$/rl_memory/actor.py" afterDir="false" />
+-      <change afterPath="$PROJECT_DIR$/rl_memory/erik/__init__.py" afterDir="false" />
+-      <change afterPath="$PROJECT_DIR$/rl_memory/memory.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/actor_cnn_attn.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/erik/old/__init__.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/figure_out.txt" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/network_cnn.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/old_pg_cnn.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/pg_cnn.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/run.py" afterDir="false" />
++      <change afterPath="$PROJECT_DIR$/rl_memory/tools.py" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/rl_memory/models/a2c/actor.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/models/a2c/actor.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/actor.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/actor_vanilla.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/custom_env/environment.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/custom_env/environment.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/attn_Q.txt" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/attn_Q.txt" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/flQ_graph.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/flQ_graph.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/frozen_lake_Q.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/frozen_lake_Q.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/lab1_problem1.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/lab1_problem1.ipynb" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/lab1_problem2.ipynb" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/lab1_problem2.ipynb" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/networkx_debug.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/networkx_debug.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/tools.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/tools.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/erik/value_prop_associative.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/old/value_prop_associative.py" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/rl_memory/models/a2c/actor_critic.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/models/a2c/actor_critic.py" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/rl_memory/pg.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/pg.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/rl_memory/pg.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_memory/erik/pg_vanilla.py" afterDir="false" />
+     </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+@@ -45,7 +59,7 @@
+     <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
+     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+-    <property name="last_opened_file_path" value="$PROJECT_DIR$/rl_memory/models/a2c" />
++    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+   </component>
+   <component name="RecentsManager">
+@@ -54,11 +68,12 @@
+     </key>
+     <key name="MoveFile.RECENT_KEYS">
+       <recent name="$PROJECT_DIR$/rl_memory" />
++      <recent name="$PROJECT_DIR$/rl_memory/erik/old" />
+       <recent name="$PROJECT_DIR$/rl_memory/erik" />
+     </key>
+   </component>
+-  <component name="RunManager" selected="Python.pg (1)">
+-    <configuration name="actor" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++  <component name="RunManager" selected="Python.run">
++    <configuration name="memory" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="RL_memory" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+@@ -70,7 +85,7 @@
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/actor.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/memory.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -79,7 +94,7 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="dql" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="network_cnn" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="RL_memory" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+@@ -87,11 +102,11 @@
+         <env name="PYTHONUNBUFFERED" value="1" />
+       </envs>
+       <option name="SDK_HOME" value="" />
+-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/rl_memory" />
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dql.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/network_cnn.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -100,7 +115,7 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="memory" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="old_pg_cnn" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="RL_memory" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+@@ -112,7 +127,7 @@
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/memory.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/old_pg_cnn.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -121,7 +136,7 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="pg (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="pg" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="RL_memory" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+@@ -129,11 +144,11 @@
+         <env name="PYTHONUNBUFFERED" value="1" />
+       </envs>
+       <option name="SDK_HOME" value="" />
+-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/rl_memory" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/pg.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/pg.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -150,11 +165,11 @@
+         <env name="PYTHONUNBUFFERED" value="1" />
+       </envs>
+       <option name="SDK_HOME" value="" />
+-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/rl_memory/erik" />
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/pg.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/pg.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -163,7 +178,7 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
+-    <configuration name="pg" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++    <configuration name="run" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+       <module name="RL_memory" />
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+@@ -171,11 +186,11 @@
+         <env name="PYTHONUNBUFFERED" value="1" />
+       </envs>
+       <option name="SDK_HOME" value="" />
+-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/rl_memory/erik" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/rl_memory" />
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
+-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/pg.py" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/rl_memory/run.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />
+       <option name="EMULATE_TERMINAL" value="false" />
+@@ -186,11 +201,11 @@
+     </configuration>
+     <recent_temporary>
+       <list>
+-        <item itemvalue="Python.pg (1)" />
++        <item itemvalue="Python.run" />
++        <item itemvalue="Python.old_pg_cnn" />
+         <item itemvalue="Python.memory" />
+-        <item itemvalue="Python.actor" />
++        <item itemvalue="Python.network_cnn" />
+         <item itemvalue="Python.pg" />
+-        <item itemvalue="Python.dql" />
+       </list>
+     </recent_temporary>
+   </component>
+@@ -245,7 +260,14 @@
+       <option name="project" value="LOCAL" />
+       <updated>1617747686015</updated>
+     </task>
+-    <option name="localTasksCounter" value="7" />
++    <task id="LOCAL-00007" summary="memory and update">
++      <created>1617995257085</created>
++      <option name="number" value="00007" />
++      <option name="presentableId" value="LOCAL-00007" />
++      <option name="project" value="LOCAL" />
++      <updated>1617995257085</updated>
++    </task>
++    <option name="localTasksCounter" value="8" />
+     <servers />
+   </component>
+   <component name="Vcs.Log.Tabs.Properties">
+@@ -257,7 +279,8 @@
+     <MESSAGE value="run pg in debugger and stop after every episode to recreate error where environment deletes goals once they are found" />
+     <MESSAGE value="mar 6 525 pm" />
+     <MESSAGE value="changed import statement in environment&#10;added update method to actor &#10;implemented train test for policy gradient pg.py" />
+-    <option name="LAST_COMMIT_MESSAGE" value="changed import statement in environment&#10;added update method to actor &#10;implemented train test for policy gradient pg.py" />
++    <MESSAGE value="memory and update" />
++    <option name="LAST_COMMIT_MESSAGE" value="memory and update" />
+   </component>
+   <component name="XDebuggerManager">
+     <breakpoint-manager>
+@@ -278,9 +301,24 @@
+           <option name="timeStamp" value="25" />
+         </line-breakpoint>
+         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+-          <url>file://$PROJECT_DIR$/rl_memory/pg.py</url>
+-          <line>58</line>
+-          <option name="timeStamp" value="26" />
++          <url>file://$PROJECT_DIR$/rl_memory/pg_cnn.py</url>
++          <line>135</line>
++          <option name="timeStamp" value="153" />
++        </line-breakpoint>
++        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
++          <url>file://$PROJECT_DIR$/rl_memory/pg_cnn.py</url>
++          <line>141</line>
++          <option name="timeStamp" value="158" />
++        </line-breakpoint>
++        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
++          <url>file://$PROJECT_DIR$/rl_memory/pg_cnn.py</url>
++          <line>133</line>
++          <option name="timeStamp" value="162" />
++        </line-breakpoint>
++        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
++          <url>file://$PROJECT_DIR$/rl_memory/pg_cnn.py</url>
++          <line>118</line>
++          <option name="timeStamp" value="163" />
+         </line-breakpoint>
+       </breakpoints>
+       <default-breakpoints>
+Index: rl_memory/pg_cnn.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/pg_cnn.py b/rl_memory/pg_cnn.py
+new file mode 100644
+--- /dev/null	(date 1619150126878)
++++ b/rl_memory/pg_cnn.py	(date 1619150126878)
+@@ -0,0 +1,191 @@
++import numpy as np
++import torch
++
++from rl_memory.network_cnn import network
++from tools import plot_episode_history, discount_reward
++
++from rl_memory.custom_env.agents import Agent
++from rl_memory.custom_env.environment import Env, State, Observation
++from rl_memory.custom_env.representations import ImageTransforms
++
++it = ImageTransforms()
++
++
++class RLAlgorithms:
++    def __init__(self, grid_shape, num_goals, hole_pct, view_length):
++
++        # env
++        self.grid_shape = grid_shape
++        self.num_goals = num_goals
++        self.hole_pct = hole_pct
++        self.env = Env(grid_shape=grid_shape, n_goals=num_goals, hole_pct=hole_pct)
++        self.custom_env = None
++
++        # agent
++        self.view_length = view_length
++        self.james_bond = Agent(view_length)
++
++        # learning hyperparams
++        self.num_episodes = 10000
++        self.gamma = .99
++        self.lr = 1e-3
++        self.reset_frequency = 10
++        self.max_num_scenes = 3 * self.grid_shape[0] * self.grid_shape[1]
++
++        # episode tracking
++        self.episode_rewards = []
++        self.episode_returns = []
++        self.episode_trajectories = []
++        self.dists = []  # [torch.exp(dist.log_prob(i)) for i in dist.enumerate_support()]
++
++    def setup_pg_cnn_single_env(self, use_custom=False):
++        if use_custom:
++            env = self.custom_env
++        else:
++            env = self.env
++
++        # init new env and get initial state
++        env.create_new()
++        state = Observation(env, self.james_bond)
++
++        # init actor network
++        action_dim = len(env.action_space)
++        state_size = state.size()
++        actor = network(state_size, action_dim, self.lr)
++        return actor, env
++
++    def train_pg_cnn_single_env(self, env, actor):
++        for episode in range(self.num_episodes):
++
++            # env.reset()  # changed from reset()
++            env = self.transfer_env()
++
++            log_probs = []
++            rewards = []
++
++            # visualize agent movement during episode
++            env_renders = []
++
++            t = 0
++            done = False
++
++            while not done:
++
++                env_renders.append(env.render_as_char(env.grid))
++
++                state = Observation(env, self.james_bond)
++                dist = actor.action_dist(state)
++                a = dist.sample()
++
++                ns, r, done, info = env.step(action_idx=a, obs=state)  # ns unused b/c env tracks
++
++                t += 1
++
++                if t == self.max_num_scenes:
++                    r = -1  # if exceeds alotted time w/o finding the goal give it negative reward
++                    done = True
++
++                if done:  # get the last env_render
++                    env_renders.append(env.render_as_char(env.grid))
++
++                log_probs.append(dist.log_prob(a).unsqueeze(0))
++                rewards.append(r)
++                self.dists.append(dist)
++
++            returns = discount_reward(rewards, self.gamma)
++            baselines = np.zeros(returns.shape)
++            advantages = returns - baselines
++            if len(log_probs) != len(advantages):
++                print("mismatch")
++            actor.update(log_probs, advantages)
++
++            total_reward = np.sum(rewards)
++            total_return = np.sum(returns)
++            if total_reward > 1:
++                print("big total")
++
++            self.episode_rewards.append(total_reward)
++            self.episode_returns.append(total_return)
++            self.episode_trajectories.append(env_renders)
++
++        # return the trained model, episode rewards, and env_renders for each trajectory
++        return actor
++
++    @staticmethod
++    def transfer_env():
++        tenv = Env(grid_shape=(3, 3), n_goals=1, hole_pct=.1)
++        tenv.set_agent_goal()
++        tenv.set_holes()
++        return tenv
++
++    def pg_cnn_transfer(self):
++        """
++        run the agent on a big environment with many holes to see if vanilla PG can solve env
++        """
++
++        # init new env and get initial state
++        self.env.create_new()
++        state = Observation(self.env, self.james_bond)
++        initial_grid = self.env.grid
++
++        self.custom_env = self.transfer_env()
++        actor, env = self.setup_pg_cnn_single_env(use_custom=True)
++        actor = self.train_pg_cnn_single_env(env=env, actor=actor)
++        avg_scene_len = np.mean([len(traj) for traj in self.episode_trajectories[-500:]])
++        while avg_scene_len > 3.3:
++            actor = self.train_pg_cnn_single_env(env=env, actor=actor)
++            avg_scene_len = np.mean([len(traj) for traj in self.episode_trajectories[-500:]])
++            print(avg_scene_len)
++
++        for episode in range(self.num_episodes):
++
++            self.env.reset()
++
++            log_probs = []
++            rewards = []
++
++            # visualize agent movement during episode
++            env_renders = []
++
++            t = 0
++            done = False
++
++            while not done:
++
++                env_renders.append(self.env.render_as_char(self.env.grid))
++
++                state = Observation(self.env, self.james_bond)
++                dist = actor.action_dist(state)
++                a = dist.sample()
++
++                ns, r, done, info = self.env.step(action_idx=a, obs=state)  # ns unused b/c env tracks
++
++                t += 1
++                if t == self.max_num_scenes:
++                    r = -1  # if exceeds alotted time w/o finding the goal give it negative reward
++                    done = True
++
++                if done:  # get the last env_render
++                    env_renders.append(self.env.render_as_char(self.env.grid))
++
++                log_probs.append(dist.log_prob(a).unsqueeze(0))
++                rewards.append(r)
++
++            returns = discount_reward(rewards, self.gamma)
++            baselines = np.zeros(returns.shape)
++            advantages = returns - baselines
++            if len(log_probs) != len(advantages):
++                print()
++            actor.update(log_probs, advantages)
++
++            total_reward = np.sum(rewards)
++            total_return = np.sum(returns)
++            if abs(total_reward) > 1:
++                print()
++
++            self.episode_rewards.append(total_reward)
++            self.episode_returns.append(total_return)
++            self.episode_trajectories.append(env_renders)
++
++        # return the trained model, episode rewards, and env_renders for each trajectory
++        return actor
+\ No newline at end of file
+Index: rl_memory/models/a2c/actor_critic.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import gym\nimport numpy as np\nfrom rl_memory.actor import Actor\nfrom critic import Critic\nfrom tools import discounted_reward, plot_episode_rewards\n\n# initialize environment\nenvname = \"CartPole-v0\"  # environment name\nenv = gym.make(envname)\nstate_dim = env.observation_space.low.size\naction_dim = env.action_space.n\n\n# init networks\nactor = Actor(state_dim, action_dim, 1e-3)  # policy initialization: policy evaluated on gradewise\ncritic = Critic(state_dim, 1e-3)  # critic initialization\n\n# hyperparams\nnum_episodes = 1000  # total num of policy evaluations and updates to perform\ngamma = .99  # discount\n\n# record training reward for algorithm evaluation\nrrecord = []\n\nfor ep in range(num_episodes):\n\n    states = []\n    actions = []\n    rewards = []\n\n    s = env.reset()  # initial state\n    done = False\n\n    while not done:\n        # sample action from pi and act in the environment\n        action_dist = actor.compute_prob(s)\n        a = np.random.choice(env.action_space.n, p=action_dist.flatten(), size=1).item()\n        ns, r, done, _ = env.step(a)\n\n        # record each memory in the trajectory\n        \"\"\"\n        more efficient to track\n        actor prob computed on line 35 and take the log prob\n        and compute the critic value in the loop\n        \"\"\"\n        states.append(s)\n        actions.append(a)\n        rewards.append(r)\n\n        s = ns\n\n    mc_vals = discounted_reward(rewards, gamma)\n    critic_vals = critic.compute_values(states)\n    advantage = mc_vals - critic_vals.T\n\n    actor.train(states, actions, advantage)\n    critic.train(states, mc_vals)\n\n    # record the reward for tracking agent's progress\n    rrecord.append(np.sum(rewards))\n    if ep % 50 == 0:\n        print(np.mean(rrecord))\n\nplot_episode_rewards(rrecord, \"training rewards\")\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/models/a2c/actor_critic.py b/rl_memory/models/a2c/actor_critic.py
+--- a/rl_memory/models/a2c/actor_critic.py	(revision 3b96719733e370aeddc0b6b185d3106aa7eabbf3)
++++ b/rl_memory/models/a2c/actor_critic.py	(date 1619146887676)
+@@ -1,6 +1,6 @@
+ import gym
+ import numpy as np
+-from rl_memory.actor import Actor
++from rl_memory.network_cnn import network
+ from critic import Critic
+ from tools import discounted_reward, plot_episode_rewards
+ 
+@@ -11,7 +11,7 @@
+ action_dim = env.action_space.n
+ 
+ # init networks
+-actor = Actor(state_dim, action_dim, 1e-3)  # policy initialization: policy evaluated on gradewise
++actor = network(state_dim, action_dim, 1e-3)  # policy initialization: policy evaluated on gradewise
+ critic = Critic(state_dim, 1e-3)  # critic initialization
+ 
+ # hyperparams
+Index: rl_memory/run.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/run.py b/rl_memory/run.py
+new file mode 100644
+--- /dev/null	(date 1619146887673)
++++ b/rl_memory/run.py	(date 1619146887673)
+@@ -0,0 +1,21 @@
++from pg_cnn import RLAlgorithms
++from tools import plot_episode_history, config
++import matplotlib.pyplot as plt
++import numpy as np
++
++a = RLAlgorithms(**config)
++m = a.pg_cnn_transfer()
++
++returns = np.array(a.episode_returns)
++rewards = np.array(a.episode_rewards)
++
++avg_returns = [np.mean(returns[:i+1]) for i in range(0, len(returns), 1)]
++avg_rewards = [np.mean(rewards[:i+1]) for i in range(0, len(rewards), 1)]
++
++to_graph0 = [(returns, .9, "agent returns"), (avg_returns, .9, "moving average returns")]
++to_graph1 = [(rewards, .9, "agent rewards"), (avg_rewards, .9, "moving average rewards")]
++
++plot_episode_history(to_graph0)
++plot_episode_history(to_graph1)
++
++plt.show()
+Index: rl_memory/tools.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/tools.py b/rl_memory/tools.py
+new file mode 100644
+--- /dev/null	(date 1619146887654)
++++ b/rl_memory/tools.py	(date 1619146887654)
+@@ -0,0 +1,69 @@
++import numpy as np
++from IPython.display import clear_output
++import matplotlib.pyplot as plt
++
++config = {
++    "grid_shape": (5, 5),
++    "num_goals": 1,
++    "hole_pct": .99,
++    "view_length": 2
++}
++
++config0 = {
++    "grid_shape": (5, 5),
++    "num_goals": 1,
++    "hole_pct": .2,
++    "view_length": 2
++}
++
++def epsilon(current_episode, num_episodes):
++    """
++    epsilon decays as the current episode gets higher because we want the agent to
++    explore more in earlier episodes (when it hasn't learned anything)
++    explore less in later episodes (when it has learned something)
++    i.e. assume that episode number is directly related to learning
++    """
++    # return 1 - (current_episode/num_episodes)
++    return .5 * .9**current_episode
++
++
++def discount_reward(rewards, gamma):
++
++    dr = np.zeros(len(rewards))
++    dr[-1] = rewards[-1]
++    for i in range(len(rewards)-2, -1, -1):
++        dr[i] = gamma*dr[i+1] + rewards[i]
++
++    return dr
++
++
++
++def plot_episode_history(to_graph, title=""):
++    """
++    example input:
++    (list_of_values, comparison/target/baseline value, "title_name"
++    to_graph = [(avg_sharpe_hist, 1, "sharpe"),
++                (avg_wealth_hist, 10, "avg wealth"),
++                (avg_crra_wealth_hist, 2.3, "crra_wealth")]
++    """
++
++    clear_output(wait=True)
++
++    # Define the figure
++    f, ax = plt.subplots(nrows=1, ncols=2, figsize=(15, 7))
++    f.suptitle(title)
++
++    for i, (data, comparison, label) in enumerate(to_graph):
++        ax[i].plot(data, label=label)
++        ax[i].axhline(comparison, c='red', ls='--')
++        ax[i].set_xlabel('Trajectories')
++        ax[i].set_ylabel(f'{label}')
++        ax[i].legend(loc='upper right')
++
++        try:
++            x0 = range(len(data))
++            z = np.polyfit(x0, data, 1)
++            p = np.poly1d(z)
++            ax[i].plot(x0, p(x0), "--", label='trend')
++        except:
++            print('')
+Index: rl_memory/network_cnn.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/network_cnn.py b/rl_memory/network_cnn.py
+new file mode 100644
+--- /dev/null	(date 1619149526607)
++++ b/rl_memory/network_cnn.py	(date 1619149526607)
+@@ -0,0 +1,82 @@
++import torch
++import torch.nn as nn
++import torch.nn.functional as F
++from torch.distributions import Categorical
++from rl_memory.models.a2c.tools import discounted_reward
++from rl_memory.memory import Memory
++from rl_memory.custom_env.representations import ImageTransforms
++import numpy as np
++
++from torch.nn import Conv2d, LeakyReLU, ReLU, MaxPool2d, BatchNorm2d, Linear
++
++it = ImageTransforms()
++
++
++# nn.module is the base neural network class
++class network(nn.Module):
++    def __init__(self, state_size, action_dim, lr, hidden_dim=5, batch_size=1):
++        super(network, self).__init__()
++        self.batch_size = batch_size
++        num_filters = 16
++        filter_size = 2
++
++        self.conv1 = Conv2d(in_channels=4, out_channels=num_filters, kernel_size=filter_size, stride=1)
++        self.bn1 = BatchNorm2d(num_filters)
++        self.act1 = LeakyReLU()
++        self.pool = MaxPool2d(kernel_size=filter_size, stride=1)
++
++        lin_dim = num_filters * (state_size[0] - filter_size) ** 2
++
++        self.lin = torch.nn.Sequential(
++            torch.nn.Linear(lin_dim, hidden_dim),
++            torch.nn.Dropout(.1),
++            torch.nn.ReLU(),
++
++            torch.nn.Linear(hidden_dim, action_dim)
++        )
++
++        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
++        self.state_dim = state_size
++        self.action_dim = action_dim
++
++        self.memory = Memory()
++
++    def forward(self, x):
++        x = self.conv1(x.float())
++        x = self.bn1(x)
++        x = self.act1(x)
++        x = self.pool(x)
++
++        x = self.lin(x.flatten())
++
++        return x
++
++    def process_state(self, state):
++        """
++        in future, need to do more processing with state := many obs
++        """
++        state = it.grid_to_rgby(state).unsqueeze(0)
++        return state
++
++    def action_dist(self, state):
++        """
++        input: state (TODO adjust for when state is sqnce of observations??)
++        ouput: softmax(nn valuation of each action)
++        """
++        state_rgby = self.process_state(state)
++        x = self.forward(state_rgby)
++
++        dist = Categorical(F.softmax(x, dim=-1))
++        return dist
++
++    def update(self, log_probs, advantages):  # add entropy
++
++        advantages = torch.FloatTensor(advantages)
++        log_probs = torch.cat(log_probs)
++        assert log_probs.requires_grad
++        assert not advantages.requires_grad
++
++        loss = - (log_probs * advantages.detach()).mean()
++        self.optimizer.zero_grad()
++        loss.backward()
++        self.optimizer.step()
+Index: rl_memory/old_pg_cnn.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/old_pg_cnn.py b/rl_memory/old_pg_cnn.py
+new file mode 100644
+--- /dev/null	(date 1619146887636)
++++ b/rl_memory/old_pg_cnn.py	(date 1619146887636)
+@@ -0,0 +1,214 @@
++import numpy as np
++import torch
++
++from rl_memory.network_cnn import network
++from rl_memory.models.a2c.tools import plot_episode_rewards
++
++from rl_memory.custom_env.agents import Agent
++from rl_memory.custom_env.environment import Env, State, Observation
++from rl_memory.custom_env.representations import ImageTransforms
++
++it = ImageTransforms()
++
++# env hyperparams
++grid_shape = (5, 5)
++n_goals = 1
++hole_pct = 0.2  # note that the env screws up if it find an env that happens to not have any holes
++
++# initialize agent and environment
++view_length = 3
++james_bond = Agent(view_length)
++env = Env(grid_shape=grid_shape, n_goals=n_goals, hole_pct=hole_pct)
++env.create_new()
++state = Observation(env, james_bond)  # in the future, we need to change to sqnce of obs
++
++
++def pg_cnn_single_env(self, use_custom=False):
++    """
++    run the agent on a big environment with many holes to see if vanilla PG can solve env
++    """
++    if use_custom:
++        env = self.custom_env
++    else:
++        env = self.env
++
++    # init new env and get initial state
++    env.create_new()
++    state = Observation(env, self.james_bond)
++
++    # init actor network
++    action_dim = len(env.action_space)
++    state_size = state.size()
++    actor = network(state_size, action_dim, self.lr)
++
++    for episode in range(self.num_episodes):
++
++        env.reset()
++
++        log_probs = []
++        rewards = []
++
++        # visualize agent movement during episode
++        env_renders = []
++
++        t = 0
++        done = False
++
++        while not done:
++
++            env_renders.append(env.render_as_char(env.grid))
++
++            state = Observation(env, self.james_bond)
++            dist = actor.action_dist(state)
++            a = dist.sample()
++            assert a in np.arange(0, action_dim).tolist()
++
++            ns, r, done, info = env.step(action_idx=a, obs=state)  # ns unused b/c env tracks
++
++            t += 1
++            if t == self.max_num_scenes:
++                r = -1  # if exceeds alotted time w/o finding the goal give it negative reward
++                done = True
++
++            if done:  # get the last env_render
++                env_renders.append(env.render_as_char(env.grid))
++
++            log_probs.append(dist.log_prob(a).unsqueeze(0))
++            rewards.append(r)
++            self.dists.append(dist)
++
++        returns = discount_reward(rewards, self.gamma)
++        baselines = np.zeros(returns.shape)
++        advantages = returns - baselines
++        if len(log_probs) != len(advantages):
++            print()
++        actor.update(log_probs, advantages)
++
++        total_reward = np.sum(rewards)
++        total_return = np.sum(returns)
++        if abs(total_reward) > 1:
++            print()
++
++        self.episode_rewards.append(total_reward)
++        self.episode_returns.append(total_return)
++        self.episode_trajectories.append(env_renders)
++
++    # return the trained model, episode rewards, and env_renders for each trajectory
++    return actor
++
++num_episodes = 300000
++def train(
++        env=env, james_bond=james_bond, state=state,
++        num_episodes=num_episodes, gamma=.99, lr=1e-3,
++        create_new_counter=0, reset_frequency=10
++):
++    """ in future, change env once it seems to learn that environment
++    that way we test whether it can transfer learn well
++    the specific env shouldn't matter too much because all it sees is """
++
++    max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
++
++    # init model
++    state_size = state.size()
++    action_dim = len(env.action_space)
++    actor = network(state_size, action_dim, lr)
++
++    # tracking important things
++    training_episode_rewards = []  # records the reward per episode
++    episode_trajectories = []
++
++    for episode in range(num_episodes):
++        print(f"episode {episode}")
++
++        # evaluate policy on current init conditions 5 times before switching to new init conditions
++        if create_new_counter == reset_frequency:
++            env.create_new()
++            create_new_counter = 0
++        else:
++            env.reset()
++
++        d = False
++        log_probs = []  # tracks log prob of each action taken in a scene
++        scene_number = 0  # track to be able to terminate episodes that drag on for too long
++        scene_rewards = []
++
++        episode_envs = []  # so you can see what the agent did in the episode
++
++        while not d:
++            episode_envs.append(env.render_as_char(env.grid))
++            state = Observation(env, james_bond)
++            dist = actor.action_dist(state)
++            # [torch.exp(action_dist.log_prob(i)) for i in action_dist.enumerate_support()] - see probs
++            a = dist.sample()
++            assert a in np.arange(0, action_dim).tolist()
++            log_probs.append(dist.log_prob(a).unsqueeze(0))
++
++            ns, r, d, info = env.step(action_idx=a, obs=state)  # ns is the new state observation bc of vision window
++
++            scene_number += 1
++            if scene_number > max_num_scenes:
++                r = -1
++                scene_rewards.append(r)
++                break
++
++            if d:
++                episode_envs.append(env.render_as_char(env.grid))
++
++            scene_rewards.append(r)
++
++        create_new_counter += 1
++        training_episode_rewards.append(np.sum(scene_rewards))
++
++        baseline = np.mean(scene_rewards)
++        actor.update(scene_rewards, gamma, baseline, log_probs)
++
++        episode_trajectories.append(episode_envs)
++
++    # return the trained model,
++    return actor, training_episode_rewards, episode_trajectories
++
++
++actor, training_episode_rewards, ept = train()
++avg_rewards = [np.mean(training_episode_rewards[:i]) for i in range(1, num_episodes, 50)]
++plot_episode_rewards(avg_rewards, "training rewards", 5)
++
++test_env = Env(grid_shape=grid_shape, n_goals=n_goals, hole_pct=hole_pct)
++
++
++def test(env=test_env, james_bond=james_bond, policy=actor, num_episodes=10):
++
++    max_num_scenes = grid_shape[0] * grid_shape[1]
++    env.create_new()
++
++    episode_trajectories = []
++    training_episode_rewards = []
++
++    for e in range(num_episodes):
++
++        episode_envs = []
++        reward_sum = 0
++        scene_number = 0
++        d = False
++
++        while not d:
++            episode_envs.append(env.render_as_char(env.grid))
++            state = Observation(env, james_bond)
++            dist = policy.action_dist(state)
++            a = dist.sample()
++
++            ns, r, d, info = env.step(action_idx=a, obs=state)  # ns is the new state observation bc of vision window
++            reward_sum += r
++
++            scene_number += 1
++            if scene_number > max_num_scenes:
++                break
++
++        episode_trajectories.append(episode_envs)
++        training_episode_rewards.append(reward_sum)
++
++    return training_episode_rewards, episode_trajectories
++
++
++test_episode_rewards, episode_trajectories = test()
++avg_rewards = [np.mean(test_episode_rewards[:i]) for i in range(1, num_episodes, 1)]
++plot_episode_rewards(test_episode_rewards, "test rewards", reset_frequency=5)
+Index: rl_memory/actor_cnn_attn.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/actor_cnn_attn.py b/rl_memory/actor_cnn_attn.py
+new file mode 100644
+--- /dev/null	(date 1619146887640)
++++ b/rl_memory/actor_cnn_attn.py	(date 1619146887640)
+@@ -0,0 +1,87 @@
++import torch
++import torch.nn as nn
++import torch.nn.functional as F
++from torch.distributions import Categorical
++from rl_memory.models.a2c.tools import discounted_reward
++from rl_memory.memory import Memory
++from rl_memory.custom_env.representations import ImageTransforms
++import numpy as np
++
++from torch.nn import Conv2d, LeakyReLU, ReLU, MaxPool2d, BatchNorm2d, Linear
++
++it = ImageTransforms()
++
++# nn.module is the base neural network class
++class Actor(nn.Module):
++    def __init__(self, state_size, action_dim, lr, hidden_dim=5, batch_size=1):
++        super(Actor, self).__init__()
++        self.batch_size = batch_size
++        num_filters = 16
++        filter_size = 2
++
++        self.conv1 = Conv2d(in_channels=4, out_channels=num_filters, kernel_size=filter_size, stride=1)
++        self.bn1 = BatchNorm2d(num_filters)
++        self.act1 = LeakyReLU()
++        self.pool = MaxPool2d(kernel_size=filter_size, stride=1)
++
++        self.lin = torch.nn.Sequential(
++            torch.nn.Linear(16*3*3, hidden_dim),
++            torch.nn.ReLU(),
++            torch.nn.Linear(hidden_dim, action_dim)
++        )
++
++        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
++        self.state_dim = state_size
++        self.action_dim = action_dim
++
++        self.memory = Memory()
++
++    def forward(self, x):
++        x = self.conv1(x.float())
++        x = self.bn1(x)
++        x = self.act1(x)
++        x = self.pool(x)
++
++        x = self.lin(x.flatten())
++
++        return x
++
++    def process_state(self, state):
++        """
++        in future, need to do more processing with state := many obs
++        """
++
++        state = it.grid_to_rgby(state).unsqueeze(0)
++
++
++        return state
++
++    def action_dist(self, state):
++        """
++        input: state (TODO adjust for when state is sqnce of observations??)
++        ouput: softmax(nn valuation of each action)
++        """
++        state_rgby = self.process_state(state)
++        x = self.forward(state_rgby)
++
++        dist = Categorical(F.softmax(x, dim=-1))
++        return dist
++
++    def update(self, scene_rewards, gamma, state_reps, log_probs):
++        returns = discounted_reward(scene_rewards, gamma)  # find the empirical value of each state in the episode
++        baselines = []  # baseline is empirical value of most similar memorized state
++
++        for sr, dr in state_reps, returns:
++            baselines.append(self.memory.val_of_similar(sr))  # query memory for baseline
++            self.memory.memorize(sr, dr)  # memorize the episode you just observed
++
++        # update with advantage policy gradient theorem
++        advantages = torch.FloatTensor(returns-baselines)
++        log_probs = torch.cat(log_probs)
++        assert log_probs.requires_grad
++        assert not advantages.requires_grad
++
++        loss = - torch.mean(advantages * log_probs)
++        self.optimizer.zero_grad()
++        loss.backward()
++        self.optimizer.step()
+Index: rl_memory/figure_out.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/figure_out.txt b/rl_memory/figure_out.txt
+new file mode 100644
+--- /dev/null	(date 1619146887631)
++++ b/rl_memory/figure_out.txt	(date 1619146887631)
+@@ -0,0 +1,2 @@
++need to figure out how to move the agent's starting position after the reset
++
+Index: rl_memory/pg.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/pg.py b/rl_memory/erik/pg_vanilla.py
+rename from rl_memory/pg.py
+rename to rl_memory/erik/pg_vanilla.py
+--- a/rl_memory/pg.py	(revision 3b96719733e370aeddc0b6b185d3106aa7eabbf3)
++++ b/rl_memory/erik/pg_vanilla.py	(date 1619146887681)
+@@ -1,7 +1,7 @@
+ import numpy as np
+ import torch
+ 
+-from rl_memory.actor import Actor
++from rl_memory.network_cnn import network
+ from rl_memory.models.a2c.tools import plot_episode_rewards
+ 
+ from rl_memory.custom_env.agents import Agent
+@@ -30,7 +30,7 @@
+     # init model
+     state_dim = state.observation.size
+     action_dim = len(env.action_space)
+-    actor = Actor(state_dim, action_dim, lr)
++    actor = network(state_dim, action_dim, lr)
+ 
+     # tracking important things
+     training_episode_rewards = []  # records the reward per episode
+@@ -40,7 +40,6 @@
+         print(f"episode {episode}")
+ 
+         # evaluate policy on current init conditions 5 times before switching to new init conditions
+-
+         if create_new_counter == reset_frequency:
+             env.create_new()
+             create_new_counter = 0
+@@ -58,7 +57,7 @@
+             episode_envs.append(env.render_as_char(env.grid))
+             state = State(env, james_bond)
+             action_dist = actor.action_dist(state.observation.flatten())
+-            # [torch.exp(action_dist.log_prob(i)) for i in action_dist.enumerate_support()]
++            # [torch.exp(action_dist.log_prob(i)) for i in action_dist.enumerate_support()] - see probs
+             a = action_dist.sample()
+             assert a in np.arange(0, action_dim).tolist()
+             log_probs.append(action_dist.log_prob(a).unsqueeze(0))
+Index: rl_memory/actor.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/rl_memory/actor.py b/rl_memory/erik/actor_vanilla.py
+rename from rl_memory/actor.py
+rename to rl_memory/erik/actor_vanilla.py
+--- a/rl_memory/actor.py	(revision 3b96719733e370aeddc0b6b185d3106aa7eabbf3)
++++ b/rl_memory/erik/actor_vanilla.py	(date 1619146887695)
+@@ -3,6 +3,8 @@
+ from torch.distributions import Categorical
+ from rl_memory.models.a2c.tools import discounted_reward
+ from rl_memory.memory import Memory
++import numpy as np
++
+ 
+ class Actor(object):
+     def __init__(self, state_dim, action_dim, lr, hidden_dim=50):
+@@ -26,13 +28,32 @@
+ 
+         self.memory = Memory()
+ 
+-    def action_dist(self, states):
++    def process_state(self, state):
++        """
++        state is an img representation (L, W, C) Length, Width, Channels
++        state has 3 channels: R (holes) , G (goals), B (agent)
++
++        input:
++            an RGB image
++
+         """
+-        input: state
++        one_hots = []
++        for i in [0, 1, 2, 3, 7]:
++            zeros = np.zeros(len(state))
++            ones = state.index(i)
++            zeros[ones] = 1
++            one_hots.append(zeros)
++
++        return state
++
++    def action_dist(self, state):
++        """
++        input: state (TODO adjust for when state is sqnce of observations??)
+         ouput: softmax(nn valuation of each action)
+         """
+-        states = torch.FloatTensor(states)
+-        dist = Categorical(F.softmax(self.model(states), dim=-1))
++        state = self.process_state(state)
++
++        dist = Categorical(F.softmax(self.model(state), dim=-1))
+         return dist
+ 
+     def update(self, scene_rewards, gamma, state_reps, log_probs):
+diff --git a/rl_memory/erik/old/__init__.py b/rl_memory/erik/old/__init__.py
+new file mode 100644
+diff --git a/rl_memory/erik/value_prop_associative.py b/rl_memory/erik/old/value_prop_associative.py
+rename from rl_memory/erik/value_prop_associative.py
+rename to rl_memory/erik/old/value_prop_associative.py
+diff --git a/rl_memory/erik/flQ_graph.py b/rl_memory/erik/old/flQ_graph.py
+rename from rl_memory/erik/flQ_graph.py
+rename to rl_memory/erik/old/flQ_graph.py
+diff --git a/rl_memory/erik/frozen_lake_Q.py b/rl_memory/erik/old/frozen_lake_Q.py
+rename from rl_memory/erik/frozen_lake_Q.py
+rename to rl_memory/erik/old/frozen_lake_Q.py
+diff --git a/rl_memory/erik/attn_Q.txt b/rl_memory/erik/old/attn_Q.txt
+rename from rl_memory/erik/attn_Q.txt
+rename to rl_memory/erik/old/attn_Q.txt
+diff --git a/rl_memory/erik/networkx_debug.py b/rl_memory/erik/old/networkx_debug.py
+rename from rl_memory/erik/networkx_debug.py
+rename to rl_memory/erik/old/networkx_debug.py
+diff --git a/rl_memory/erik/tools.py b/rl_memory/erik/old/tools.py
+rename from rl_memory/erik/tools.py
+rename to rl_memory/erik/old/tools.py
