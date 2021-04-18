@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 from typing import List
+try:
+    import rl_memory
+except:
+    exec(open('__init__.py').read()) 
+    import rl_memory
+from rl_memory.custom_env import environment
+import environment.Observation
 
 class Memory:
 
@@ -10,8 +17,9 @@ class Memory:
 
 class Trajectory:
 
-    def __init__(self, memories: List[Memory] = []):
+    def __init__(self, memories: List[Memory] = [], pct_mask: float = 0.35):
         self.memories = memories
+        self.pr_mask
 
     @property
     def rewards(self) -> List[float]:
@@ -35,6 +43,9 @@ class Trajectory:
 
     def __repr__(self):
         return f"<{self.__class__.__name__} at {hex(id(self))}>"
-    
 
-    
+    def masked(self) -> List[Memory]: 
+        # Mask pct_mask of the memories by converting them to zeros 
+        
+
+

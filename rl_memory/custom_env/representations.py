@@ -228,4 +228,4 @@ class TestImgTransfroms:
                 "'img_tensor' has the wrong number of channels" 
                 + f"({img_tensor.shape[-1]}), when it should have 4.")
 
-TestImgEncoder.test_forward()
+# TestImgEncoder.test_forward()
