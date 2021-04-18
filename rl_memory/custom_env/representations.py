@@ -9,6 +9,8 @@ from numpy import ndarray
 from torch import Tensor
 from pprint import pprint
 
+from torch.nn.modules.normalization import LayerNorm
+
 exec(open('__init__.py').read()); import rl_memory
 from rl_memory.custom_env import environment
 from rl_memory.tests import test_environment
@@ -82,21 +84,25 @@ class ImgEncoder(nn.Module):
         width, C the number of channels (3 for RGB), and N is the batch size
     ouput_channels is the number of filters, a.k.a. kernels.
     """
-    def __init__(self, obs_shape, num_img_channels=3):
+    def __init__(self, obs_shape, rep_dim: int = 128, num_img_channels=3, 
+                 activate_output: bool = True):
         super().__init__()
         self.obs_shape = obs_shape; assert len(obs_shape) == 3
         batch_size = obs_shape[0]
         self.batch_size = batch_size
+        self.activate_output = activate_output
 
         # Convolutional layer parameters
         self.num_img_channels = num_img_channels
-        num_filters = 20
+        num_filters = 24
         img_width = obs_shape[-1]
+        self.img_width = img_width
         filter_width = 3
         l0_padding = 0
         l0_stride = 1
-        output_width = (
+        l0_output_width = (
             (img_width - filter_width + 2*l0_padding) / l0_stride) + 1
+        l1_output_width = (l0_output_width - filter_width) + 1
 
         # --------------------------------------------
         # Architecture
@@ -106,15 +112,22 @@ class ImgEncoder(nn.Module):
                 in_channels=3, out_channels=num_filters, 
                 kernel_size=filter_width, stride = l0_stride, 
                 padding=l0_padding, ),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=num_filters),
+            nn.Dropout(p=0.1))
         self.conv_l1 = nn.Sequential(
             nn.Conv2d(
                 in_channels=num_filters, out_channels=num_filters, 
                 kernel_size=filter_width, stride = 1),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.BatchNorm2d(num_features=num_filters))
+ 
         self.conv_layers = [self.conv_l0, self.conv_l1]
-
-        self.img_width = img_width
+        fc_in_dim = int(num_filters*l1_output_width*l1_output_width)
+        self.fc = nn.Sequential(
+            nn.Linear(in_features=fc_in_dim, 
+                      out_features=rep_dim),
+            nn.LayerNorm(rep_dim))
 
         self.outputs: dict = {}
 
@@ -139,7 +152,7 @@ class ImgEncoder(nn.Module):
         embedding = x.view(batch_size, -1) # store as column vector
         return embedding
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, detach_grad=False) -> Tensor:
         batch_size = x.size(0)
         correct_shape = torch.Size([batch_size, self.num_img_channels, 
                                     self.img_width, self.img_width])
@@ -147,8 +160,16 @@ class ImgEncoder(nn.Module):
             f"Expected 'x' of shape (N, C, H, W), which is {correct_shape},"
             + f" but got 'x' with {x.shape} instead")
 
-        embedding = self.forward_convolutions(x)
-        output = embedding  # for now
+        embedding: Tensor = self.forward_convolutions(x)
+        if detach_grad:
+            embedding = embedding.detach()
+        unactivated_output = self.fc(embedding)
+        if self.activate_output:
+            output = unactivated_output
+        else:
+            output = torch.tanh(unactivated_output)
+            self.outputs['tanh_out'] = output
+
         return output
 
 # ---------------------------------------------------------
@@ -180,6 +201,7 @@ class TestImgEncoder:
 
         # Pass batch of images through image encoder
         rl_encoder = ImgEncoder(obs_shape = obs_img.shape)
+        breakpoint()
         out: Tensor = rl_encoder(batch)
         assert out.shape[0] == BATCH_SIZE
 
@@ -206,4 +228,4 @@ class TestImgTransfroms:
                 "'img_tensor' has the wrong number of channels" 
                 + f"({img_tensor.shape[-1]}), when it should have 4.")
 
-# TestImgEncoder.test_forward()
+TestImgEncoder.test_forward()
