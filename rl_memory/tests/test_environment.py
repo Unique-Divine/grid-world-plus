@@ -21,8 +21,8 @@ def init_env():
         env: An empty environment without any agents, goals, or holes. 
         pm: An instance of the Pathmaker class.  
     """
-    env = environment.Env(grid_shape=(10,10), n_goals=2, 
-                                  hole_pct = 0.5)
+    env = environment.Env(grid_shape=(15,15), n_goals=4, 
+                                  hole_pct = 0.3)
     pm = environment.PathMaker(env)
     return env, pm
 
