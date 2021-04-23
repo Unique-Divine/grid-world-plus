@@ -1,0 +1,51 @@
+DO Q learning to generate N trajectories (where N is a hyperparameter)
+attn trains on those trajectories and tries to predict the reward
+for each state in out state rep (phi(s)):
+    update the Q(state) with the output of the attention
+    this update is a bigger than the normal Q update
+
+little is intractable for most RL problems, so how to loop?
+
+for traj in experience_replay:
+    for phi(s) in scenes_from_traj:
+        update phi(s) with the Attn(phi(s))
+
+we want to change the Q-value of each visited phi(s) by an amount prescribed by the attention modeule
+    have a list of all the states that have been visited
+    we need to provide the attn with a sequence, so you cant just give it a memory (i.e. a state)
+
+    problem: how do we input a sequence to the attn for each state that weve visited to get an Q-value update
+        memory is all the info in a time step
+        memories give us a graph where nodes are states that have been visited,
+        actions are edges connecting those states to the next states
+        we can use this representation to feed in trajectories that will update the V(s) with the attention
+        the Q value of s can be retrieverd from V(s) by taking the max_a (Q(s,a))
+
+
+in the attention update on the Q-values, each phi(s) is only updated once
+    where phi(s) is a state that is visited in memoryview
+
+you wont appear in exactly the same state in all likelihood, so how do you update phi(s) when phi(s) is slighly different
+two possible solutions
+1) define some smilarity metric on phi(s)
+    conterxt matrices of attn give you blackbox similarity metric
+    just need one trajectory to do this
+    You can see how many traj it takes to train the memory, becnchmark with DQN
+
+
+What unique would do:
+    in DQN, you have max_Q given an action
+    right beore you take action, you can make a prediction with the attn of the reward
+    attn says: if I create this memory, whats the reward assocaited
+    right before you take ana ction in real-time, sps its a memory to get a prediction from the attn
+
+pi(s) = max_a [ Q(s,a) + attn(s,a) ]
+    attn now is providing the agent with information on the best action realted not only to the slow Q_update, but
+    all of its memories
+
+    Question:
+        given that we are operating in a markov decision process, is it a problemt o input the whole
+        the fact of the matter that these environments are not totally markov
+            for example, when youve received a reward in teh past a la meontezuma revenge with the key, that will
+                inform the best actgion i.e. if you have the key, going to the door will have ea better value than if
+                you dont have the key
