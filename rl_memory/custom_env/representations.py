@@ -11,7 +11,10 @@ from pprint import pprint
 
 from torch.nn.modules.normalization import LayerNorm
 
-exec(open('__init__.py').read()); import rl_memory
+try: 
+    import rl_memory
+except:
+    exec(open('__init__.py').read()); import rl_memory
 from rl_memory.custom_env import environment
 from rl_memory.tests import test_environment
 
