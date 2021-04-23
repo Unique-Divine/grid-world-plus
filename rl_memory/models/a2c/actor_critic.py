@@ -1,6 +1,6 @@
 import gym
 import numpy as np
-from rl_memory.actor import Actor
+from rl_memory.erik.network_cnn import network
 from critic import Critic
 from tools import discounted_reward, plot_episode_rewards
 
@@ -11,7 +11,7 @@ state_dim = env.observation_space.low.size
 action_dim = env.action_space.n
 
 # init networks
-actor = Actor(state_dim, action_dim, 1e-3)  # policy initialization: policy evaluated on gradewise
+actor = network(state_dim, action_dim, 1e-3)  # policy initialization: policy evaluated on gradewise
 critic = Critic(state_dim, 1e-3)  # critic initialization
 
 # hyperparams
