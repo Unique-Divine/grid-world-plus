@@ -11,7 +11,10 @@ from pprint import pprint
 
 from torch.nn.modules.normalization import LayerNorm
 
-exec(open('__init__.py').read()); import rl_memory
+try: 
+    import rl_memory
+except:
+    exec(open('__init__.py').read()); import rl_memory
 from rl_memory.custom_env import environment
 from rl_memory.tests import test_environment
 
@@ -122,7 +125,7 @@ class ImgEncoder(nn.Module):
             nn.ReLU(),
             nn.BatchNorm2d(num_features=num_filters))
  
-        self.conv_layers = [self.conv_l0, self.conv_l1]
+        self.conv_layers = nn.ModuleList([self.conv_l0, self.conv_l1])
         fc_in_dim = int(num_filters*l1_output_width*l1_output_width)
         self.fc = nn.Sequential(
             nn.Linear(in_features=fc_in_dim, 
