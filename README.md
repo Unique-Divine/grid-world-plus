@@ -17,8 +17,8 @@ A research project in vision-based deep reinforcement learning centered on trans
 - [[Poster]][poster-link] & [[poster presentation]][poster-presentation]: For a high-level overview.
 
 
-[report-link]: https://raw.githack.com/Unique-Divine/RL_memory/divine/notes/presentations/reportS21-RL_Memory.pdf
-[poster-link]: https://raw.githack.com/Unique-Divine/RL_memory/divine/notes/presentations/seminar_poster-rl_memory.pdf
+[report-link]: https://raw.githack.com/Unique-Divine/RL_memory/main/notes/presentations/reportS21-RL_Memory.pdf
+[poster-link]: https://raw.githack.com/Unique-Divine/RL_memory/main/notes/presentations/seminar_poster-rl_memory.pdf
 [poster-presentation]: https://youtu.be/6iCXpgfTO6A
 
 
