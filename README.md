@@ -1,14 +1,24 @@
-# RL_memory
+# RL Memory
+
+![Python 3.7+] ![Contributions welcome][contributions-badge] [![License: MIT][mit-license-badge]][license] ![PyTorch][torch-badge]
+
 
 A research project in vision-based deep reinforcement learning centered on transfer learning, unsupervised representation learning, and applying attention mechanisms to interpret memories.
 
 
-References:
-- Chen et al. (2020). A simple framework for contrastive learning of visual representations. In International conference on machine learning (pp. 1597-1607). PMLR. 
-- Devlin et al. (2018). BERT: Pre-training of deep bidirectional transformers for language understanding. arXiv preprint arXiv:1810.04805. 
-- Hessel et al. (2018). Rainbow: Combining improvements in deep reinforcement learning. In Proceedings of the AAAI Conference on Artificial Intelligence (Vol. 32, No. 1).
-- Mnih et al. (2015). Human-level control through deep reinforcement learning. Nature, 518(7540), 529-533. 
-- Srinivas et al. (2020). CURL: Contrastive unsupervised representations for reinforcement learning. In International Conference on Machine Learning (pp. 5639-5650). PMLR. 
-- Oh et al. (2016). Control of memory, active perception, and action in Minecraft. In International Conference on Machine Learning (pp. 2790-2799). PMLR. 
-- Oord et al. (2018). Representation learning with contrastive predictive coding. arXiv preprint arXiv:1807.03748. 
-- Zhu et al. (2020). Masked Contrastive Representation Learning for Reinforcement Learning. arXiv preprint arXiv:2010.07470.
+[Python 3.7+]: https://img.shields.io/badge/python-3.7+-blue.svg
+[mit-license-badge]: https://img.shields.io/badge/License-MIT-g.svg 
+[license]: https://github.com/eskalnes/RL_memory/blob/main/LICENSE
+[contributions-badge]: https://img.shields.io/badge/contributions-welcome-yellow.svg 
+[torch-badge]: https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?&logo=PyTorch&logoColor=white
+
+#### More info
+- [[Report - Spring 2021]][report-link]: Contains detailed information on what was done up to May 2021.
+- [[Poster]][poster-link] & [[poster presentation]][poster-presentation]: For a high-level overview.
+
+
+[report-link]: https://raw.githack.com/eskalnes/RL_memory/divine/notes/presentations/reportS21-RL_Memory.pdf
+[poster-link]: https://raw.githack.com/eskalnes/RL_memory/divine/notes/presentations/seminar_poster-rl_memory.pdf
+[poster-presentation]: https://youtu.be/6iCXpgfTO6A
+
+
