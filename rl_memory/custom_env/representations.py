@@ -125,7 +125,7 @@ class ImgEncoder(nn.Module):
             nn.ReLU(),
             nn.BatchNorm2d(num_features=num_filters))
  
-        self.conv_layers = [self.conv_l0, self.conv_l1]
+        self.conv_layers = nn.ModuleList([self.conv_l0, self.conv_l1])
         fc_in_dim = int(num_filters*l1_output_width*l1_output_width)
         self.fc = nn.Sequential(
             nn.Linear(in_features=fc_in_dim, 
