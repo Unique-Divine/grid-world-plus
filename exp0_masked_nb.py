@@ -20,9 +20,7 @@ from rl_memory.custom_env import agents
 from rl_memory.tests import test_environment
 from rl_memory.custom_env import representations
 
-
 # In[2]:
-
 
 def load_pickle_object(dir_path: str, file: str) -> object:
     with open(os.path.join(dir_path, file), "rb") as fp:
@@ -34,8 +32,7 @@ erik_trajs = load_pickle_object(
     dir_path = os.path.join("rl_memory", "erik"),
     file = "last_trajectory.p")
 
-
-# In[3]: Coll
+# In[3]: Load in finished trajectories.
 
 it = representations.ImgTransforms()
 SIGHT_DISTANCE = 4
@@ -56,7 +53,7 @@ it.show_rgb(img_trajs[-1][-1])
 # In[4]: Attempt at masking a trajectory
 
 t = img_trajs[-1]
-def mask(trajectory, pct = 0.40):
+def mask_trajectory(trajectory, pct = 0.40):
     rand_vals = np.random.random(size=len(trajectory))
     mask_idxs = np.argwhere(rand_vals < pct).flatten()
     for idx in mask_idxs:
@@ -64,4 +61,4 @@ def mask(trajectory, pct = 0.40):
     masked_trajectory = trajectory
     return masked_trajectory
 
-mask(t)
+mask_trajectory(t)
