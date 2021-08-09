@@ -3,11 +3,11 @@ import numpy as np
 from rl_memory.erik.network_cnn import network
 from tools import discount_reward
 
-from rl_memory.custom_env.agents import Agent
-from rl_memory.custom_env.environment import Env, Observation
-from rl_memory.custom_env.representations import ImageTransforms
+from rl_memory.custom_env import agents
+from rl_memory.custom_env import environment
+from rl_memory.custom_env import representations
 
-it = ImageTransforms()
+it = representations.ImageTransforms()
 
 
 class RLAlgorithms:
@@ -17,12 +17,13 @@ class RLAlgorithms:
         self.grid_shape = grid_shape
         self.num_goals = num_goals
         self.hole_pct = hole_pct
-        self.env = Env(grid_shape=grid_shape, n_goals=num_goals, hole_pct=hole_pct)
+        self.env = environment.Env(
+            grid_shape = grid_shape, n_goals = num_goals, hole_pct = hole_pct)
         self.custom_env = None
 
         # agent
         self.view_length = view_length
-        self.james_bond = Agent(view_length)
+        self.james_bond = agents.Agent(view_length)
 
         # learning hyperparams
         self.num_episodes = 10000
@@ -45,7 +46,7 @@ class RLAlgorithms:
 
         # init new env and get initial state
         env.create_new()
-        state = Observation(env, self.james_bond)
+        state = environment.Observation(env, self.james_bond)
 
         # init actor network
         action_dim = len(env.action_space)
@@ -72,7 +73,7 @@ class RLAlgorithms:
 
                 env_renders.append(env.render_as_char(env.grid))
 
-                state = Observation(env, self.james_bond)
+                state = environment.Observation(env, self.james_bond)
                 dist = actor.action_dist(state)
                 a = dist.sample()
 
@@ -112,7 +113,7 @@ class RLAlgorithms:
 
     @staticmethod
     def transfer_env():
-        tenv = Env(grid_shape=(3, 3), n_goals=1, hole_pct=.1)
+        tenv = environment.Env(grid_shape=(3, 3), n_goals=1, hole_pct=.1)
         tenv.set_agent_goal()
         tenv.set_holes()
         return tenv
@@ -124,7 +125,7 @@ class RLAlgorithms:
 
         # init new env and get initial state
         self.env.create_new()
-        state = Observation(self.env, self.james_bond)
+        state = environment.Observation(self.env, self.james_bond)
         initial_grid = self.env.grid
 
         self.custom_env = self.transfer_env()
@@ -153,7 +154,7 @@ class RLAlgorithms:
 
                 env_renders.append(self.env.render_as_char(self.env.grid))
 
-                state = Observation(self.env, self.james_bond)
+                state = environment.Observation(self.env, self.james_bond)
                 dist = actor.action_dist(state)
                 a = dist.sample()
 
