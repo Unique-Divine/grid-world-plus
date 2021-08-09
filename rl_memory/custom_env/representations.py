@@ -9,8 +9,6 @@ from numpy import ndarray
 from torch import Tensor
 from pprint import pprint
 
-from torch.nn.modules.normalization import LayerNorm
-
 try: 
     import rl_memory
 except:
