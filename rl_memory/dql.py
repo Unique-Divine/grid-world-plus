@@ -2,57 +2,60 @@ import torch
 import numpy as np
 import gym
 import random
-import sys
-import os
 import collections
 
-from models.DQN.q_network import Q
-from models.DQN.tools import epsilon, run_target_update, plot_episode_rewards, ReplayBuffer
-
-from custom_env.agent import Agent
-from custom_env.environment import Env, State, PathMaker
+import os, sys
+try:
+    import rl_memory
+except:
+    exec(open('__init__.py').read()) 
+    import rl_memory
+from rl_memory.models import DQN
+from rl_memory.custom_env import agent
+from rl_memory.custom_env import environment
 
 # buffer hyperparameters
-batchsize = 2  # batchsize for buffer sampling
-buffer_maxlength = 1000  # max number of tuples held by buffer
-episodes_til_buffer_sample = 2
-buffer = ReplayBuffer(buffer_maxlength)  # buffer holds the memories of the exp replay
-Experience = collections.namedtuple("Experience", ["obs", "a", "r", "next_obs", "d"])
+batchsize: int = 2  # batchsize for buffer sampling
+buffer_maxlength: int = 1000  # max number of tuples held by buffer
+episodes_til_buffer_sample: int = 2
+buffer = DQN.tools.ReplayBuffer(buffer_maxlength)  # buffer holds the memories of the exp replay
+Experience = collections.namedtuple(
+    typename = "Experience", 
+    field_names = ["obs", "a", "r", "next_obs", "d"])
 
 # DQL hyperparameters
-steps_til_target_update = 50  # time steps for target update
-num_episodes = 100  # number of episodes to run
-gamma = .99  # discount
+steps_til_target_update: int = 50  # time steps for target update
+num_episodes: int = 100  # number of episodes to run
+discount_factor: float = .99  # aka gamma
 
 # tracking important things
 list_of_episode_rewards = []  # records the reward per episode
 Qtarget_update_counter = 0  # count the number of steps taken before updating Qtarget
 
 # initialize environment and agent
-env = Env(grid_shape=(3, 3), n_goals=1, hole_pct=0.1)
-james_bond = Agent(4)
+env = environment.Env(grid_shape=(3, 3), n_goals=1, hole_pct=0.1)
+james_bond = agent.Agent(4)
 env.create()
 
 # initialize the principal and the target Q nets
-state = State(env, james_bond)
+state = environment.State(env, james_bond)
 state_dim = state.observation.size
 action_dim = len(env.action_space)
 lr = 1e-3
-QP = Q(state_dim, action_dim, lr)
-QT = Q(state_dim, action_dim, lr)
+QP = DQN.q_network.Q(state_dim, action_dim, lr)
+QT = DQN.q_network.Q(state_dim, action_dim, lr)
 
 for episode in range(num_episodes):
     env.reset()
-    d = False
-    reward_sum = 0
-
-    scene_number = 0
-    while not d:
-        state = State(env, james_bond)
+    done: bool = False
+    reward_sum: float = 0
+    scene_number: int = 0
+    while not done:
+        state = environment.State(env, james_bond)
         q_vals = QP.predict_state_value(state.observation.flatten())
 
         # Execute actions
-        if np.random.rand() < epsilon(episode, num_episodes):
+        if np.random.rand() < DQN.tools.epsilon(episode, num_episodes):
             a = np.random.randint(0, action_dim)
         else:
             a = torch.argmax(q_vals)
@@ -82,7 +85,7 @@ for episode in range(num_episodes):
 
         q_vals_ns = QT.predict_state_value(next_states)
         max_vals = torch.max(q_vals_ns, dim=1).values  # take the max along the columns
-        targets = torch.tensor(rewards) + torch.tensor(gamma)*max_vals
+        targets = torch.tensor(rewards) + torch.tensor(discount_factor)*max_vals
 
         done_indices = [i for i, d in enumerate(dones) if d==1]
         for idx in done_indices:
@@ -92,7 +95,7 @@ for episode in range(num_episodes):
 
         # 5)
         if Qtarget_update_counter % steps_til_target_update == 0:
-            run_target_update(QP, QT)
+            DQN.tools.run_target_update(QP, QT)
 
         # 6)
         Qtarget_update_counter += 1
@@ -101,4 +104,5 @@ for episode in range(num_episodes):
 
     list_of_episode_rewards.append(reward_sum)
 
-plot_episode_rewards(list_of_episode_rewards, "episode_rewards")
+DQN.tools.plot_episode_rewards(list_of_episode_rewards, "episode_rewards")
+
