@@ -12,7 +12,7 @@ def discount_rewards(rewards: List[float], discount_factor: float):
 
     Args:
         rewards (List[float]): A list of reward values from a full trajectory.
-        discount_factor (float): [description]
+        discount_factor (float): [description] Typically denoted by gamma.
 
     Returns:
         discounted_rewards (Array): [description]

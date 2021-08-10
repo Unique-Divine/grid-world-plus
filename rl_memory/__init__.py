@@ -1,4 +1,5 @@
 import os, sys
+from typing import List
 
 def access_root_dir(depth = 1):
     current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -21,4 +22,4 @@ Env = environment.Env
 Agent = agents.Agent
 State = environment.State
 
-__all__: list[str] = ['Env', 'State', 'Agent']
+__all__: List[str] = ['Env', 'State', 'Agent']

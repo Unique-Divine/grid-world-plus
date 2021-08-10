@@ -192,7 +192,7 @@ class TestEnvIntegration:
                 obs = environment.Observation(env=env, agent=james_bond)
                 step = env.step(action_idx = random.randrange(8), 
                                 obs = obs)
-                observation, reward, done, info = step
+                observation, reward, done, info = step.values
                 ep_steps.append(step)
                 if done:
                     break
