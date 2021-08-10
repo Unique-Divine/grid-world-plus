@@ -1,3 +1,11 @@
+"""[summary]
+
+Classes:
+    Point
+    Step
+    Env
+
+"""
 import numpy as np
 import torch
 import os, sys
@@ -5,6 +13,7 @@ import copy
 import random
 import collections
 import copy
+from dataclasses import dataclass, field
 try:
     import rl_memory
 except:
@@ -40,6 +49,26 @@ class Point(np.ndarray):
             raise ValueError(f"args: {args}, type(args[0]): {type(args[0])}")
         return self
 
+@dataclass
+class EnvStep:
+    """A step in the environment.
+
+    Attributes: 
+        next_obs (Observation): Next observation of the environment after the agent
+            takes an action.
+        reward (float): Reward received after taking an action.
+        done (bool): Specifies whether the episode is complete.
+        info (str): Unused attribute. 
+    """
+    next_obs: Tensor
+    reward: float
+    done: bool
+    info: str = ""
+    values: tuple = field(init = False)
+
+    def __post_init__(self):
+        self.values = (self.next_obs, self.reward, self.done, self.info)
+
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
     a varying starting position for the agent, holes, and goal(s). Movements are
@@ -73,7 +102,7 @@ class Env:
         s = State(env, james_bond) # the state of Bond in the environment
         random_action = random.randrange(8)
         step = env.step(action_idx = random_action, state = s)
-        observation, reward, done, info = step
+        observation, reward, done, info = step.values
     replay_buffer.append( ... )
     ```
     """
@@ -334,7 +363,7 @@ class Env:
         else:
             raise AttributeError("'env_start' must be an ndarray or None.")
 
-    def step(self, action_idx: int, obs) -> NamedTuple:
+    def step(self, action_idx: int, obs) -> EnvStep:
         action: Point = self.action_space[action_idx]
         desired_position: Point = obs.center + action
         new_x, new_y = desired_position
@@ -379,9 +408,9 @@ class Env:
         
         next_observation = Observation(env = self, agent = obs.agent)
         info = ""
-        Step = collections.namedtuple(
-            "Step", ["next_obs", "reward", "done", "info"])
-        return Step(next_observation, reward, done, info)
+        return EnvStep(
+            next_obs = next_observation, reward = reward, done = done, 
+            info = info)
         
 class PathMaker:
     def __init__(self, env: Env) -> None:

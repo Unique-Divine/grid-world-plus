@@ -41,8 +41,7 @@ The goal from these two steps is to be able to pass input (representations) thro
 
 Figure 2: Plots of agent rewards per trajectory and moving average rewards
 - [ ] Retrieve the data that was used to create these plots
-- [ ] 
-
+- [ ] .
 
 ---
 
