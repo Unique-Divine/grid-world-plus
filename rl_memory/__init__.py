@@ -20,6 +20,6 @@ from rl_memory.custom_env import agents
 
 Env = environment.Env
 Agent = agents.Agent
-State = environment.State
+Observation = environment.Observation
 
-__all__: List[str] = ['Env', 'State', 'Agent']
+__all__: List[str] = ['Env', 'Observation', 'Agent']
