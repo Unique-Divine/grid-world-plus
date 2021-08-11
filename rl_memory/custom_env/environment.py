@@ -135,7 +135,7 @@ class Env:
         self.valid_path: List[List[int]]
         self._env_start: np.ndarray = copy.deepcopy(self.empty_grid)
 
-        # Declare board paramteres as class attributes
+        # Declare board parameters as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
             raise ValueError("'hole_pct' must be between 0 and 1.") 
         self.hole_pct = hole_pct

@@ -25,7 +25,6 @@ def discount_rewards(rewards: List[float], discount_factor: float):
                                  + rewards[i])
     return discounted_rewards
 
-
 def epsilon(episode_idx: int, 
             decay_type: str = "exponential",
             num_episodes: Optional[int] = None) -> float:
