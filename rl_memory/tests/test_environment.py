@@ -10,20 +10,24 @@ import torch
 import random
 import copy
 import warnings; warnings.filterwarnings("ignore")
-from typing import List
-
 from rl_memory.custom_env import environment
 from rl_memory.custom_env.agents import Agent
+# Type imports
+from typing import List, Tuple
+from torch import Tensor
+Array = np.ndarray
+Env = environment.Env
+PathMaker = environment.PathMaker
 
-def init_env():
+def init_env() -> Tuple[Env, PathMaker]:
     """Helper function for setting up a random environments for tests. 
     Returns:
         env: An empty environment without any agents, goals, or holes. 
         pm: An instance of the Pathmaker class.  
     """
-    env = environment.Env(grid_shape=(15,15), n_goals=4, 
+    env: Env = environment.Env(grid_shape=(15,15), n_goals=4, 
                                   hole_pct = 0.3)
-    pm = environment.PathMaker(env)
+    pm: PathMaker = environment.PathMaker(env)
     return env, pm
 
 class TestEnvInit:
@@ -37,7 +41,7 @@ class TestEnvInit:
 
         env.set_agent_goal()
         # Find interactables such as the agent and goal
-        nonfrozen_spots: np.ndarray = np.argwhere(
+        nonfrozen_spots: Array = np.argwhere(
             env.grid != env.interactables['frozen'])
         assert nonfrozen_spots.ndim == 2
         assert nonfrozen_spots.size >= 4
@@ -101,7 +105,7 @@ class TestPathMaker:
                 "'shifted spot' is too far away.")
 
     def test_random_walk(self):
-        env, pm = init_env()
+        env, pm = init_env() # ignore type: Env, PathMaker 
         spot: List[int] = random.choice(env.position_space)
         n_steps =  env.grid.shape[0] // 2
         random_path = pm.random_walk(n_steps = n_steps, start = spot)

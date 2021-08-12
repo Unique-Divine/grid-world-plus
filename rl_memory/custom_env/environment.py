@@ -1,10 +1,12 @@
 """[summary]
 
 Classes:
-    Point
-    Step
     Env
-
+    Observation
+    ObservationSeq
+    EnvStep: A step in the environment
+    Point
+    PathMaker: Helper class that guarantees the environment is solvable.
 """
 import numpy as np
 import torch
@@ -22,6 +24,7 @@ except:
 from rl_memory.custom_env.agents import Agent
 from typing import List, Union, Generator, NamedTuple
 from torch import Tensor
+Array = np.ndarray
 import warnings; warnings.filterwarnings("ignore")
 
 class Point(np.ndarray):
@@ -54,13 +57,13 @@ class EnvStep:
     """A step in the environment.
 
     Attributes: 
-        next_obs (Observation): Next observation of the environment after the agent
-            takes an action.
+        next_obs (Observation): An observation of the environment after the 
+            agent takes an action. This is the observation at time t+1.
         reward (float): Reward received after taking an action.
         done (bool): Specifies whether the episode is complete.
         info (str): Unused attribute. 
     """
-    next_obs: Tensor
+    next_obs: 'Observation'
     reward: float
     done: bool
     info: str = ""
@@ -99,9 +102,10 @@ class Env:
     ```
     done = False
     while done!= True:  
-        s = State(env, james_bond) # the state of Bond in the environment
-        random_action = random.randrange(8)
-        step = env.step(action_idx = random_action, state = s)
+        obs = Observation(env=env, agent=james_bond) 
+        # Obseration of Bond in the environment
+        random_action: int = random.randrange(8)
+        step: EnvStep = env.step(action_idx = random_action, obs = obs)
         observation, reward, done, info = step.values
     replay_buffer.append( ... )
     ```
@@ -131,7 +135,7 @@ class Env:
         self.valid_path: List[List[int]]
         self._env_start: np.ndarray = copy.deepcopy(self.empty_grid)
 
-        # Declare board paramteres as class attributes
+        # Declare board parameters as class attributes
         if (hole_pct < 0) or (hole_pct >= 1):
             raise ValueError("'hole_pct' must be between 0 and 1.") 
         self.hole_pct = hole_pct
@@ -363,12 +367,16 @@ class Env:
         else:
             raise AttributeError("'env_start' must be an ndarray or None.")
 
-    def step(self, action_idx: int, obs) -> EnvStep:
+    def step(self, action_idx: int, 
+             obs: Union['Observation', 'ObservationSeq']) -> EnvStep:
         action: Point = self.action_space[action_idx]
         desired_position: Point = obs.center + action
         new_x, new_y = desired_position
         interactable: int = obs[new_x, new_y].item()
         
+        # TODO: Currently, 'obs' is assumed to be an Observation instance.
+        # Come back and implement the case that 'obs' is an 'obs_seq'.
+
         def move():
             x, y = self.agent_position
             new_x, new_y = Point(self.agent_position) + action
@@ -413,6 +421,7 @@ class Env:
             info = info)
         
 class PathMaker:
+    """Helper class that guarantees the environment is solvable."""
     def __init__(self, env: Env) -> None:
         self.env = env
         self.valid_path: list = None 
@@ -430,7 +439,8 @@ class PathMaker:
         is_agent: np.ndarray = (env.grid == env.interactables['agent'])
         is_hole: np.ndarray = (env.grid == env.interactables['hole'])
         is_explored = (is_agent | is_hole)
-        explored_spots: List[list] = [A.tolist() for A in np.argwhere(is_explored)]
+        explored_spots: List[list] = [
+            A.tolist() for A in np.argwhere(is_explored)]
         assert len(env.position_space) >= len(explored_spots)
 
         # Store unexplored spots 
@@ -647,8 +657,8 @@ class PathMaker:
                 length of 'env.grid' that will be taken as shortest path steps.
                 Directly affects the variable 'sp_steps'.  
         Returns:
-            valid_path (List[List[int]]): List of ordered pairs that consistute a 
-                guaranteed successful path for the agent. 
+            valid_path (List[List[int]]): List of ordered pairs that consistute 
+                a guaranteed successful path for the agent. 
         """
         # TODO: Generate valid path
         agent_position = self.env.agent_position
@@ -694,7 +704,8 @@ class PathMaker:
                 path_a += front_of_shortest
                 path_g += back_of_shortest[::-1]
         
-        # TODO: Verify that optimal_g connects to path_g and optimal_a connects to path_a
+        # TODO: Verify that optimal_g connects to path_g and 
+        # optimal_a connects to path_a
         
         # TODO: Check that the valid path is actually valid -> write test:
         # 1. Verify that valid_path starts with agent position and ends with goal
@@ -703,19 +714,25 @@ class PathMaker:
         return valid_path
 
 class Observation(torch.Tensor):
-    """[summary]
+    """An observation of the environment, i.e. what is observed by an agent.
+
+    An observation is a partial description of an environment state. Note that
+    an observation may omit information, hence why we call it a partial 
+    description. 
+    A state is a complete description of the state of the environment. No
+    information about the environment is hidden from a state.
     
     Args:
         agent (Agent): The agent that's making the observation of the env.
         env (Env): An environment with an agent in it. The environment contains 
             all information needed to get a state for reinforcement learning. 
-        env_grid (np.ndarray): 
+        env_grid (np.ndarray): An array that captures describes the env state.
         env_char_grid (np.ndarray): 
         dtype: The data type for the observation, which is a torch.Tensor.
 
     Attributes:
-        center_abs (Point): The agent's on the 'env.grid'.
-        center (Point): The agent's position on the current sight window.
+        center_abs (Point): The agent's position in the 'env.grid'.
+        center (Point): The agent's position in the current sight window.
         agent (Agent)
     """
     def __new__(cls, agent: Agent, env: Env = None, 
@@ -773,23 +790,28 @@ class Observation(torch.Tensor):
             pass # TODO 
         return obs
     
-    def __repr__(self):
-        obs_grid = self.numpy()
+    def __repr__(self: Tensor):
+        obs_grid: Array = self.numpy()
         return f"{Env.render_as_char(grid = obs_grid)}"
 
-class State(list):
+class ObservationSeq(list):
+    """[summary]
+
+    Args:
+        observations (List[Observation]): 
+    """
     def __new__(cls, observations: List[Observation], K: int = 2) -> list:
         assert cls.check_for_valid_args(observations, K)
 
-        state: List[Observation]
+        obs_seq: List[Observation]
         if K == 1:
-            state = observations
+            obs_seq = observations
         if len(observations) < K:
-            state = observations
+            obs_seq = observations
             duplications = K - len(observations)
             for _ in range(duplications):
-                state.insert(0, observations[0])
-        return state
+                obs_seq.insert(0, observations[0])
+        return obs_seq
         
     @classmethod
     def check_for_valid_args(cls, observations, K):
