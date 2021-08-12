@@ -86,3 +86,17 @@ class RLAlgorithm(abc.ABC):
                 self.on_episode_end()
         ```
         """
+
+class TransferLearningManagement(abc.ABC):
+    """Abstract object that manages the transfer learning process."""
+
+    @abc.abstractmethod
+    def __init__(self, transfer_freq: int):
+        self.transfer_freq = transfer_freq
+
+    @abc.abstractmethod
+    def transfer(self, ep_idx: int, env: rlm.Env, *args: Any) -> rlm.Env:
+        """Transfers the agent to a random environment based on the transfer 
+        frequency attribute, 'freq'.
+        """
+
