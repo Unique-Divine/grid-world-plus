@@ -38,7 +38,7 @@ class VPGHyperParameters:
     
     Q: How do hyperparameters differ from the model parameters?
     A: If you have to specify a paramter manually, then it is probably a 
-    hyperparamter. For example, the learning rate is a hyperparameter."""
+    hyperparameter. For example, the learning rate is a hyperparameter."""
 
     lr: float
     batch_size: int = 1
@@ -163,6 +163,19 @@ class VPGEpisodeTracker(rlm.EpisodeTracker):
 
 
 class VPGAlgo(rlm.RLAlgorithm):
+    """Runs the Vanilla Policy Gradient algorithm.
+
+    Args:
+        policy_network (VPGNetwork): [description]
+        env (rlm.Env): [description]
+        agent (rlm.Agent): [description]
+    
+    Attributes:
+        episode_tracker (rlm.EpisodeTracker): 
+        env (rlm.Env): [description]
+        agent (rlm.Agent): [description]
+    """
+
     def __init__(
             self, 
             policy_network: VPGNetwork, 
@@ -241,7 +254,7 @@ class VPGAlgo(rlm.RLAlgorithm):
             env (Env): [description]
             scene_tracker (VPGSceneTracker): [description]
         """
-        t = 0
+        scene_idx = 0
         done: bool = False
         while not done:
             done: bool = self.film_scene(
@@ -249,12 +262,12 @@ class VPGAlgo(rlm.RLAlgorithm):
                 policy_network = self.policy_network, 
                 scene_tracker = scene_tracker)
 
-            t += 1
+            scene_idx += 1
             if done:  
                 self.on_scene_end(env = env, scene_tracker = scene_tracker)
                 break
             elif self.agent_took_too_long(
-                time = t,
+                time = scene_idx,
                 max_time = max_num_scenes):
                 scene_tracker.rewards[-1] = -1  
                 done = True
@@ -348,12 +361,15 @@ class VPGExperiment:
 
     def pretrain_on_easy_env(
             self, 
-            rl_algo: VPGAlgo, 
             policy_network: VPGNetwork):
         """TODO docstring
         Methods come from RLAlgorithm
         """
-        rl_algo = VPGAlgo(agent = self.agent, policy_network = policy_network)
+        easy_env = self.easy_env()
+        rl_algo = VPGAlgo(
+            policy_network = policy_network,
+            env = easy_env,
+            agent = self.agent, )
         rl_algo.run_algo(
             num_episodes = self.num_episodes, 
             max_num_scenes = self.max_num_scenes)
@@ -363,98 +379,59 @@ class VPGExperiment:
     def pretrain_to_threshold(
         self, 
         policy_network: VPGNetwork, 
-        scene_len_threshold: float = 3.3, 
+        ep_len_threshold: float = 3.3, 
         trajectory_lookback_window: int = 500) -> VPGNetwork:
         """Recursively trains the agent (policy network) on an easy environment
         until it can solve it quickly and consistently.
 
         Args:
             policy_network (VPGNetwork): The network that receives pre-training. 
-            scene_len_threshold (float): Defaults to 3.3.
+            ep_len_threshold (float): Defaults to 3.3.
             trajectory_lookback_window (int): Defaults to 500.
+        
+        Returns
+            policy_network (VPGNetwork): Pre-trained network.
         """
-        avg_scene_len = np.infty
+        avg_episode_len = np.infty
 
-        while avg_scene_len > scene_len_threshold:
-            rl_algo = VPGAlgo(
-                policy_network = policy_network,
-                agent = self.agent)
+        while avg_episode_len > ep_len_threshold:
             policy_network = self.pretrain_on_easy_env(
-                rl_algo = rl_algo,
                 policy_network = policy_network)
-            avg_scene_len = np.mean(
+            avg_episode_len = np.mean(
                 [len(traj) for traj in self.episode_tracker.trajectories[
                      -trajectory_lookback_window:]])
-            print(avg_scene_len)
+            print(avg_episode_len)
         return policy_network
 
-    def pg_cnn_transfer(self):
+    def pg_cnn_transfer(self) -> VPGNetwork:
         """
-        run the agent on a big environment with many holes to see if 
-        vanilla PG can solve env
+        Steps:
+        1. Pretrain a network on the easy environment. 
+        2. Transfer it to the big environment with many holes to see if VPG can 
+            solve it.
+        
+        Returns:
+            policy_network
         """
 
+        # Step 1
         # init new env and get initial state
         self.env.create_new()
         obs: Observation = environment.Observation(self.env, self.agent)
-
         policy_network: VPGNetwork = self.create_policy_network(
             env = self.env, obs = obs)
         policy_network = self.pretrain_to_threshold(
             policy_network = policy_network)
 
-        for episode_idx in range(self.num_episodes):
-            self.env.reset()
-
-            log_probs = []
-            rewards = []
-
-            # visualize agent movement during episode
-            env_char_renders = []
-
-            t = 0
-            done = False
-
-            while not done:
-                env_char_renders.append(self.env.render_as_char(self.env.grid))
-
-                obs: Observation = environment.Observation(self.env, self.agent)
-                action_distribution = policy_network.action_distribution(obs)
-                a = action_distribution.sample()
-
-                new_obs, r, done, info = self.env.step(
-                    action_idx=a, obs=obs)  # new_obs unused b/c env tracks
-                if done:  # get the last env_render
-                    env_char_renders.append(
-                        self.env.render_as_char(self.env.grid))
-                t += 1
-                if t == self.max_num_scenes:
-                    # Time limit exceeded -> negative reward
-                    r = -1  
-                    done = True
-
-
-                log_probs.append(action_distribution.log_prob(a).unsqueeze(0))
-                rewards.append(r)
-
-            returns = rl_memory.tools.discount_rewards(
-                rewards, self.discount_factor)
-            baselines = np.zeros(returns.shape)
-            advantages = returns - baselines
-            if len(log_probs) != len(advantages):
-                print()
-            policy_network.update(log_probs, advantages)
-
-            total_reward = np.sum(rewards)
-            total_return = np.sum(returns)
-            if total_reward > 1:
-                print("big reward")
-
-            self.episode_tracker.rewards.append(total_reward)
-            self.episode_tracker.returns.append(total_return)
-            self.episode_tracker.trajectories.append(env_char_renders)
-
-        # return the trained model, episode rewards, and env_renders for each trajectory
+        # TODO: Change it to algorithm with 
+        # Step 2
+        rl_algo = VPGAlgo(
+            policy_network = policy_network, 
+            env = self.env,
+            agent = self.Agent)
+        rl_algo.run_algo(
+            num_episodes = self.num_episodes,
+            max_num_scenes = self.max_num_scenes)
         return policy_network
 
 # ----------------------------------------------------------------------
