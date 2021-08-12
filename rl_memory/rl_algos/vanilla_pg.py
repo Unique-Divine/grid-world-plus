@@ -21,7 +21,7 @@ from rl_memory.rl_algos import base
 from rl_memory.rl_algos import trackers
 
 # Type imports
-from typing import Dict, List, Iterable, Tuple, Optional
+from typing import Dict, List, Iterable, Tuple, Optional, Union
 Env = rlm.Env
 EnvStep = environment.EnvStep
 from torch import Tensor
@@ -439,23 +439,24 @@ class VPGExperiment:
 #               Begin Experiment
 # ----------------------------------------------------------------------
 
-# env hyperparams
-grid_shape = (3, 3)
-n_goals = 1
-hole_pct = 0
 
-# initialize agent and environment
-james_bond: Agent = agents.Agent(4)
+# initialize agent and an environment with no holes
+james_bond: rlm.Agent = agents.Agent(4)
 env: rlm.Env = environment.Env(
-    grid_shape=grid_shape, n_goals=n_goals, hole_pct=hole_pct)
+    grid_shape = (3, 3), 
+    n_goals = 1, 
+    hole_pct = 0)
 env.create_new()
-obs: rlm.Observation = environment.Observation(env, james_bond)
+obs: rlm.Observation = environment.Observation(
+    env = env, agent = james_bond, )
 
-def train(env: rlm.Env = env, agent: rlm.Agent = james_bond, 
+def train(env: rlm.Env = env, 
           obs: rlm.Observation = obs,
+          agent: rlm.Agent = james_bond, 
           num_episodes = 20, gamma = .99, lr = 1e-3,  
           reset_frequency = 5):
 
+    grid_shape: Tuple[int] = env.grid.shape
     max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
 
     # init model

@@ -1,5 +1,5 @@
 #%%
-import os
+import os, sys
 try:
     import rl_memory
 except:

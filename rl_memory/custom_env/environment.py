@@ -22,7 +22,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from typing import List, Union, Generator
+from typing import List, Union, Generator, Optional
 from torch import Tensor
 Array = np.ndarray
 import warnings; warnings.filterwarnings("ignore")
@@ -51,6 +51,129 @@ class Point(np.ndarray):
         else:
             raise ValueError(f"args: {args}, type(args[0]): {type(args[0])}")
         return self
+
+class Observation(torch.Tensor):
+    """An observation of the environment, i.e. what is observed by an agent.
+
+    An observation is a partial description of an environment state. Note that
+    an observation may omit information, hence being called a partial 
+    description. 
+
+    A state is a complete description of the state of the environment. No
+    information about the environment is hidden from a state.
+    
+    Args:
+        agent (rlm.Agent): The agent that's making the observation of the env.
+        env (Optional[rlm.Env]): An environment with an agent in it. The 
+            environment contains all information needed to get states for 
+            reinforcement learning. 
+        env_grid (Optional[np.ndarray]): An array that captures describes the 
+            env state.
+        env_char_grid (Optional[np.ndarray]): 
+        dtype (torch.dtype): The data type for the observation.
+
+    Attributes:
+        center_abs (Point): The agent's position in the 'env.grid'.
+        center (Point): The agent's position in the current sight window.
+        agent (Agent)
+    """
+    def __new__(cls, 
+                agent: 'rlm.Agent',
+                env: Optional['rlm.Env'] = None, 
+                env_grid: Optional[np.ndarray] = None, 
+                env_char_grid: Optional[np.ndarray] = None,
+                dtype: torch.dtype = torch.float,
+                ) -> torch.Tensor:
+        env_state_given: bool = ((env is not None) 
+                           or (env_grid is not None) 
+                           or (env_char_grid is not None))
+        if not env_state_given:
+            raise ValueError(
+                "Some format of environment must be given. Any of the 'env', "
+                + "'env_grid', or 'env_char_grid' arguments will suffice.")
+        env_interactables = Env().interactables
+        if env_grid is not None:
+            env_position_space = Env(grid_shape=env_grid.shape).position_space
+            env_grid = env_grid
+        elif env_char_grid is not None:
+            env_position_space = Env(
+                grid_shape=env_char_grid.shape).position_space
+            env_grid = Env.render_as_grid(char_grid = env_char_grid)
+        else:
+            assert env is not None, ("If 'env_grid' and 'env_char_grid' aren't "
+                                     + "given, 'env' must be given.")
+            env_position_space = env.position_space
+            env_grid = env.grid
+
+        center: Point = Point([agent.sight_distance] * 2)
+        is_agent: np.ndarray = (env_grid == env_interactables['agent'])
+        env_agent_position = Point(np.argwhere(is_agent)[0].tolist())
+        center_abs: Point = env_agent_position
+
+        def observe() -> Tensor:
+            sd: int = agent.sight_distance
+            observation = np.empty(
+                shape= [agent.sight_distance * 2 + 1] * 2, 
+                dtype = np.int16)
+            row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
+            col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
+            def views(row_view, col_view) -> Generator:
+                for row_idx in row_view:
+                    for col_idx in col_view:
+                        displacement = Point(row_idx, col_idx) - center_abs
+                        relative_position: Point = center + displacement
+                        rel_row, rel_col = relative_position
+                        yield row_idx, col_idx, rel_row, rel_col
+            
+            for view in views(row_view, col_view):
+                row_idx, col_idx, rel_row, rel_col = view 
+                if [row_idx, col_idx] in env_position_space:
+                    observation[rel_row, rel_col] = env_grid[row_idx, col_idx]
+                else:
+                    observation[rel_row, rel_col] = env_interactables[
+                        'blocked']
+            return torch.from_numpy(observation).float()
+
+        obs: Tensor = observe()
+        setattr(obs, "center", center)
+        setattr(obs, "center_abs", center_abs)
+        setattr(obs, "agent", agent)
+
+        def as_color_img(obs: Tensor, env = env):
+            pass # TODO 
+        return obs
+    
+    def __repr__(self: Tensor):
+        obs_grid: Array = self.numpy()
+        return f"{Env.render_as_char(grid = obs_grid)}"
+
+class ObservationSeq(list):
+    """[summary]
+
+    Args:
+        observations (List[Observation]): 
+    """
+    def __new__(cls, observations: List[Observation], K: int = 2) -> list:
+        assert cls.check_for_valid_args(observations, K)
+
+        obs_seq: List[Observation]
+        if K == 1:
+            obs_seq = observations
+        if len(observations) < K:
+            obs_seq = observations
+            duplications = K - len(observations)
+            for _ in range(duplications):
+                obs_seq.insert(0, observations[0])
+        return obs_seq
+        
+    @classmethod
+    def check_for_valid_args(cls, observations, K):
+        if len(observations) < 1:
+            raise ValueError("Attribute 'observations' (list) is empty.") 
+        elif K < 1:
+            raise ValueError("Attribute 'K' (int) is must be >= 1.")
+        else:
+            return True
 
 @dataclasses.dataclass
 class EnvStep:
@@ -420,116 +543,6 @@ class Env:
             next_obs = next_observation, reward = reward, done = done, 
             info = info)
         
-class Observation(torch.Tensor):
-    """An observation of the environment, i.e. what is observed by an agent.
-
-    An observation is a partial description of an environment state. Note that
-    an observation may omit information, hence why we call it a partial 
-    description. 
-    A state is a complete description of the state of the environment. No
-    information about the environment is hidden from a state.
-    
-    Args:
-        agent (Agent): The agent that's making the observation of the env.
-        env (Env): An environment with an agent in it. The environment contains 
-            all information needed to get a state for reinforcement learning. 
-        env_grid (np.ndarray): An array that captures describes the env state.
-        env_char_grid (np.ndarray): 
-        dtype: The data type for the observation, which is a torch.Tensor.
-
-    Attributes:
-        center_abs (Point): The agent's position in the 'env.grid'.
-        center (Point): The agent's position in the current sight window.
-        agent (Agent)
-    """
-    def __new__(cls, agent: rlm.Agent, env: rlm.Env = None, 
-                env_grid: np.ndarray = None, env_char_grid: np.ndarray = None,
-                dtype = torch.float,
-                ) -> torch.Tensor:
-        assert ((env is not None) or (env_grid is not None) 
-            or (env_char_grid is not None))
-        env_interactables = Env().interactables
-        if env_grid is not None:
-            env_position_space = Env(grid_shape=env_grid.shape).position_space
-            env_grid = env_grid
-        elif env_char_grid is not None:
-            env_position_space = Env(
-                grid_shape=env_char_grid.shape).position_space
-            env_grid = Env.render_as_grid(char_grid = env_char_grid)
-        elif env is not None:
-            env_position_space = env.position_space
-            env_grid = env.grid
-
-        center: Point = Point([agent.sight_distance] * 2)
-        is_agent: np.ndarray = (env_grid == env_interactables['agent'])
-        env_agent_position = Point(np.argwhere(is_agent)[0].tolist())
-        center_abs: Point = env_agent_position
-
-        def observe() -> Tensor:
-            sd: int = agent.sight_distance
-            observation = np.empty(
-                shape= [agent.sight_distance * 2 + 1] * 2, 
-                dtype = np.int16)
-            row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
-            col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
-            def views(row_view, col_view) -> Generator:
-                for row_idx in row_view:
-                    for col_idx in col_view:
-                        displacement = Point(row_idx, col_idx) - center_abs
-                        relative_position: Point = center + displacement
-                        rel_row, rel_col = relative_position
-                        yield row_idx, col_idx, rel_row, rel_col
-            
-            for view in views(row_view, col_view):
-                row_idx, col_idx, rel_row, rel_col = view 
-                if [row_idx, col_idx] in env_position_space:
-                    observation[rel_row, rel_col] = env_grid[row_idx, col_idx]
-                else:
-                    observation[rel_row, rel_col] = env_interactables[
-                        'blocked']
-            return torch.from_numpy(observation).float()
-
-        obs: Tensor = observe()
-        setattr(obs, "center", center)
-        setattr(obs, "center_abs", center_abs)
-        setattr(obs, "agent", agent)
-
-        def as_color_img(obs: Tensor, env = env):
-            pass # TODO 
-        return obs
-    
-    def __repr__(self: Tensor):
-        obs_grid: Array = self.numpy()
-        return f"{Env.render_as_char(grid = obs_grid)}"
-
-class ObservationSeq(list):
-    """[summary]
-
-    Args:
-        observations (List[Observation]): 
-    """
-    def __new__(cls, observations: List[Observation], K: int = 2) -> list:
-        assert cls.check_for_valid_args(observations, K)
-
-        obs_seq: List[Observation]
-        if K == 1:
-            obs_seq = observations
-        if len(observations) < K:
-            obs_seq = observations
-            duplications = K - len(observations)
-            for _ in range(duplications):
-                obs_seq.insert(0, observations[0])
-        return obs_seq
-        
-    @classmethod
-    def check_for_valid_args(cls, observations, K):
-        if len(observations) < 1:
-            raise ValueError("Attribute 'observations' (list) is empty.") 
-        elif K < 1:
-            raise ValueError("Attribute 'K' (int) is must be >= 1.")
-        else:
-            return True
-
 class PathMaker:
     """Helper class that guarantees the environment is solvable."""
 
