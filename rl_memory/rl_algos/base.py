@@ -6,7 +6,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from typing import Any
+from typing import Any, Optional, Tuple
 
 class RLAlgorithm(abc.ABC):
     """Representation of a reinforcement learning algorithm
@@ -33,6 +33,11 @@ class RLAlgorithm(abc.ABC):
             done (bool): Whether or not the episode is finished.
         """
     
+    @abc.abstractmethod
+    def on_scene_start(self) -> Tuple[rlm.Env, rlm.SceneTracker, Optional[Any]]:
+        """Called at the beginning of a scene. Initializes the environment and 
+        scene tracker."""
+
     @abc.abstractmethod
     def on_scene_end(self):
         """Called at the end of a scene."""
