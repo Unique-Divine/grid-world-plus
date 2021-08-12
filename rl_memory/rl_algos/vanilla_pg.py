@@ -3,30 +3,35 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import distributions
 import numpy as np
-from dataclasses import dataclass
+import dataclasses
 import os, sys 
 try:
     import rl_memory
 except:
     exec(open('__init__.py').read()) 
     import rl_memory
+import rl_memory as rlm
 import rl_memory.memory
 import rl_memory.tools
 from rl_memory.custom_env import representations 
 from rl_memory.custom_env import agents 
 from rl_memory.custom_env import environment
+from rl_memory.rl_algos import base
 # Type imports
-from typing import Dict, List, Iterable
-Env = rl_memory.Env
-Observation = rl_memory.Observation
-State = rl_memory.State
-Agent = rl_memory.Agent
+from typing import Dict, List, Iterable, Tuple
+Env = rlm.Env
+EnvStep = environment.EnvStep
+Observation = rlm.Observation
+State = rlm.State
+Agent = rlm.Agent
+RLAlgorithm = rlm.RLAlgorithm
 from torch import Tensor
+Array = np.ndarray
 Categorical = distributions.Categorical
 
 it = representations.ImageTransforms()
 
-@dataclass
+@dataclasses.dataclass
 class VPGHyperParameters:
     """Hyperparameters for the policy network.
     
@@ -118,17 +123,34 @@ class VPGNetwork(nn.Module):
         loss.backward()
         self.optimizer.step()
 
-@dataclass
-class VPGEpisodeTracker:
-    """Container class for tracking episode results.
+@dataclasses.dataclass
+class VPGSceneTracker:
+    """Container class for tracking scene-level results.
 
     Attributes:
-        rewards (List[]): List of episode rewards. Each element of 'rewards' is 
-            the total reward for a particular episode.
-        returns (List[]): List of episode returns. Each element of 'returns' is
-            the total discounted reward for a particular episode. Returns refers 
-            to the discounted reward. Thus, return is equivalent to reward if 
-            the episode has length one. 
+        rewards (List[float]): Scene rewards. Defaults to empty list.
+        discounted_rewards (Array): Scene discounted rewards. Defaults to None.
+        log_probs (List[float]): Scene log probabilities for the action chosen 
+            by the agent. Defaults to empty list.
+        env_char_renders (List[Array]): Character renders of the env grid. 
+            Used for visualizing how the agent moves.
+    """
+    rewards: List[float] = [] 
+    discounted_rewards: Array = None
+    log_probs: List[float] = [] 
+    env_char_renders: List[Array] = []
+
+@dataclasses.dataclass
+class VPGEpisodeTracker:
+    """Container class for tracking episode-level results.
+
+    Attributes:
+        rewards (List[float]): List of total rewards for each episode. Each 
+            element of 'rewards' is the total reward for a particular episode.
+        returns (List[float]): List of total returns for each episode. Each 
+            element of 'returns' is the total discounted reward for a particular 
+            episode. Returns refers to the discounted reward. Thus, return is 
+            equivalent to reward if the episode has length one. 
         trajectories (List[]):
         distributions (List[Categorical]): 
     """
@@ -137,6 +159,121 @@ class VPGEpisodeTracker:
     trajectories: List = []
     distributions: List[Categorical] = []
         # [torch.exp(dist.log_prob(i)) for i in dist.enumerate_support()]
+
+
+class VPGAlgo(rlm.RLAlgorithm):
+    def __init__(self, agent: Agent):
+        self.agent = agent
+        self.max_num_scenes: int
+
+    def run_algo(self):
+        scene_start: Tuple[rlm.Env, rlm.SceneTracker] = self.on_scene_start()
+        env, scene_tracker = scene_start
+        for episode_idx in range(self.num_episodes):
+            self.film_epsiode() 
+            self.update_policy_network()
+            self.on_episode_end()
+
+    def film_scene(
+        self,
+        env: rlm.Env, 
+        policy_network: VPGNetwork, 
+        scene_tracker: VPGSceneTracker) -> bool:
+        """Runs a scene. A scene is one step of an episode.
+
+        Args:
+            scene_tracker (VPGSceneTracker): Stores scene-level results.
+
+        Returns:
+            done (bool): Whether or not the episode is finished.
+        """
+        # Observe environment
+        obs: Observation = environment.Observation(env, self.agent)
+        action_distribution: Categorical = (
+            policy_network.action_distribution(obs))
+        action_idx: int = action_distribution.sample()
+
+        # Perform action
+        env_step: rlm.EnvStep = env.step(
+            action_idx = action_idx, obs = obs)
+        next_obs, reward, done, info = env_step
+        
+        scene_tracker.log_probs.append(action_distribution.log_prob(
+            action_idx).unsqueeze(0))
+        scene_tracker.rewards.append(reward)
+        scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
+        return done
+    
+    def on_scene_end(self, env: rlm.Env, scene_tracker: VPGSceneTracker):
+        scene_tracker.env_char_renders.append(
+            env.render_as_char(env.grid))
+    
+    @staticmethod
+    def agent_took_too_long(time: int, max_time: int) -> bool:
+        return time == max_time
+    
+    def film_episode(
+            self, 
+            env: rlm.Env, 
+            policy_network: VPGNetwork, 
+            scene_tracker: VPGSceneTracker):
+        """Runs an episode.
+
+        Args:
+            env (Env): [description]
+            scene_tracker (VPGSceneTracker): [description]
+        """
+        t = 0
+        done: bool = False
+        while not done:
+            done: bool = self.film_scene(
+                env = env, policy_network = policy_network, scene_tracker = scene_tracker)
+
+            t += 1
+            if done:  
+                self.on_scene_end(env = env, scene_tracker = scene_tracker)
+                break
+            elif self.agent_took_too_long(time = t,
+                                    max_time = self.max_num_scenes):
+                scene_tracker.rewards[-1] = -1  
+                done = True
+            else:
+                continue
+
+    def update_policy_network(
+            self,
+            policy_network: VPGNetwork,
+            scene_tracker: VPGSceneTracker):
+        """Updates the weights and biases of the policy network."""
+        discounted_rewards: Array = rl_memory.tools.discount_rewards(
+            rewards = scene_tracker.rewards, 
+            discount_factor = self.discount_factor)
+        scene_tracker.discounted_rewards = discounted_rewards
+        baselines = np.zeros(discounted_rewards.shape)
+        advantages = discounted_rewards - baselines
+        assert len(scene_tracker.log_probs == len(advantages)), "MISMATCH!"
+        policy_network.update(scene_tracker.log_probs, advantages)
+
+    def on_episode_end(
+            episode_tracker: VPGEpisodeTracker,
+            scene_tracker: VPGSceneTracker):
+        """Stores episode results and any other actions at episode end.
+
+        Args:
+            episode_tracker (VPGEpisodeTracker): [description]
+            scene_tracker (VPGSceneTracker): [description]
+
+        Returns:
+            [type]: [description]
+        """
+        total_reward = np.sum(scene_tracker.rewards)
+        total_return = np.sum(scene_tracker.discounted_rewards)
+        episode_tracker.rewards.append(total_reward)
+        episode_tracker.returns.append(total_return)
+        episode_tracker.trajectories.append(
+            scene_tracker.env_char_renders)
+        episode_tracker.distributions.append(
+            scene_tracker.action_distribution)
 
 class VPGExperiment:
     """formerly pg_cnn.py
@@ -147,7 +284,7 @@ class VPGExperiment:
         episode_tracker (VPGEpisodeTracker):
     """
     def __init__(self, 
-                 env: Env, 
+                 env: rlm.Env, 
                  agent: Agent, 
                  episode_tracker: VPGEpisodeTracker):
 
@@ -168,7 +305,7 @@ class VPGExperiment:
         self.max_num_scenes = 3 * self.grid_shape[0] * self.grid_shape[1]
 
     def create_policy_network(self, 
-                              env: Env, 
+                              env: rlm.Env, 
                               obs: Observation) -> VPGNetwork:
         action_dim: int = len(env.action_space)
         obs_size: torch.Size = obs.size()
@@ -180,9 +317,9 @@ class VPGExperiment:
 
     def init_env(self, use_custom=False) -> Env:
         if use_custom:
-            env = self.custom_env
+            env: rlm.Env = self.custom_env
         else:
-            env = self.env
+            env: rlm.Env = self.env
 
         env.create_new()
         return env
@@ -193,64 +330,27 @@ class VPGExperiment:
         Returns:
             (Env): A small, 3 by 3 environment with one goal and one hole.
         """
-        easy_env: Env = environment.Env(
+        easy_env: rlm.Env = environment.Env(
             grid_shape=(3, 3), n_goals=1, hole_pct=.1)
         easy_env.reset()
         return easy_env
 
     def pretrain_on_easy_env(self, policy_network: VPGNetwork):
+        """TODO docstring
+        Methods come from RLAlgorithm
+        """
+
         for episode_idx in range(self.num_episodes):
             env = self.easy_env() # as opposed to env.reset()
-            log_probs = []
-            rewards = []
-            env_char_renders = [] # visualize agent movement during episode
+            scene_tracker = VPGSceneTracker()
 
-            t = 0
-            done = False
-
-            while not done:
-                env_char_renders.append(env.render_as_char(env.grid))
-
-                obs: Observation = environment.Observation(env, self.agent)
-                action_distribution: Categorical = (
-                    policy_network.action_distribution(obs))
-                action_idx: int = action_distribution.sample()
-
-                ns, reward, done, info = env.step(
-                    action_idx = action_idx, obs = obs)
-                # ns unused b/c env tracks
-
-                t += 1
-
-                if t == self.max_num_scenes:
-                    # Agent took too long to solve -> negative reward
-                    reward = -1  
-                    done = True
-
-                if done:  # get the last env_render
-                    env_char_renders.append(env.render_as_char(env.grid))
-
-                log_probs.append(action_distribution.log_prob(
-                    action_idx).unsqueeze(0))
-                rewards.append(reward)
-                self.distributions.append(action_distribution)
-
-            returns = rl_memory.tools.discount_rewards(
-                rewards = rewards, discount_factor = self.discount_factor)
-            baselines = np.zeros(returns.shape)
-            advantages = returns - baselines
-            if len(log_probs) != len(advantages):
-                print("mismatch")
-            policy_network.update(log_probs, advantages)
-
-            total_reward = np.sum(rewards)
-            total_return = np.sum(returns)
-            if total_reward > 1:
-                print("big total")
-
-            self.episode_tracker.rewards.append(total_reward)
-            self.episode_tracker.returns.append(total_return)
-            self.episode_tracker.trajectories.append(env_char_renders)
+            film_episode(env = env, scene_tracker = scene_tracker)
+            update_policy_network(
+                policy_network = policy_network,
+                scene_tracker = scene_tracker)
+            on_episode_end(
+                episode_tracker = self.episode_tracker,
+                scene_tracker = scene_tracker)
         return policy_network
 
     def pretrain_to_threshold(
@@ -357,14 +457,14 @@ hole_pct = 0
 
 # initialize agent and environment
 james_bond: Agent = agents.Agent(4)
-env: Env = environment.Env(
+env: rlm.Env = environment.Env(
     grid_shape=grid_shape, n_goals=n_goals, hole_pct=hole_pct)
 env.create_new()
 obs: Observation = environment.Observation(env, james_bond)
 
-def train(env: Env = env, agent: Agent = james_bond, obs: Observation = obs,
+def train(env: rlm.Env = env, agent: Agent = james_bond, obs: Observation = obs,
           num_episodes = 20, gamma = .99, lr = 1e-3,  
-          create_new_counter = 0, reset_frequency = 5):
+          reset_frequency = 5):
 
     max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
 
@@ -372,65 +472,64 @@ def train(env: Env = env, agent: Agent = james_bond, obs: Observation = obs,
     obs_size: torch.Size = obs.observation.size
     action_dim: int = len(env.action_space)
     h_params = VPGHyperParameters(lr = lr)
-    policy = VPGNetwork(
+    policy_network = VPGNetwork(
         obs_size = obs_size, action_dim = action_dim, 
         h_params = h_params)
 
     # tracking important things
-    training_tracker: VPGEpisodeTracker
-    training_episode_rewards = []  # records the reward per episode
-    episode_trajectories = []
+    training_tracker = VPGEpisodeTracker()
 
-    for episode in range(num_episodes):
-        print(f"episode {episode}")
+    for episode_idx in range(num_episodes):
+        print(f"episode {episode_idx}")
 
         # evaluate policy on current init conditions 5 times before switching to new init conditions
-        if create_new_counter == reset_frequency:
-            env.create_new()
-            create_new_counter = 0
+        if (episode_idx % reset_frequency == 0) and (episode_idx > 0):
+            env.create_new() # Reset to a random environment (same params)
         else:
-            env.reset()
+            env.reset() # Reset to the same environment
 
         done = False
         log_probs = []  # tracks log prob of each action taken in a scene
+
+        episode_grids = []  # so you can see what the agent did in the episode
+
         scene_number = 0  # track to be able to terminate episodes that drag on for too long
         scene_rewards = []
-
-        episode_envs = []  # so you can see what the agent did in the episode
-
         while not done:
-            episode_envs.append(env.render_as_char(env.grid))
+            episode_grids.append(env.render_as_char(env.grid))
             obs: Observation = environment.Observation(env, agent)
-            action_distribution = policy.action_distribution(
+            action_distribution = policy_network.action_distribution(
                 obs.flatten())
-            # [torch.exp(action_dist.log_prob(i)) for i in action_dist.enumerate_support()] - see probs
-            a = action_distribution.sample()
-            assert a in np.arange(0, action_dim).tolist()
-            log_probs.append(action_distribution.log_prob(a).unsqueeze(0))
+            # [torch.exp(action_dist.log_prob(i)) 
+            # for i in action_dist.enumerate_support()] - see probs
+            action_idx: int = action_distribution.sample()
+            assert action_idx in np.arange(0, action_dim).tolist()
 
-            new_state, r, done, info = env.step(action_idx=a, state=state)  # ns is the new state observation bc of vision window
+            log_probs.append(action_distribution.log_prob(
+                action_idx).unsqueeze(0))
+            next_obs, reward, done, info = env.step(
+                action_idx = action_idx, obs = obs)  
 
             scene_number += 1
             if scene_number > max_num_scenes:
-                r = -1
-                scene_rewards.append(r)
+                reward = -1
+                scene_rewards.append(reward)
                 break
 
             if done:
-                episode_envs.append(env.render_as_char(env.grid))
+                episode_grids.append(env.render_as_char(env.grid))
 
-            scene_rewards.append(r)
+            scene_rewards.append(reward)
+        policy_network.update(scene_rewards, gamma, log_probs)
+
         episode_rewards = np.sum(scene_rewards)
-        create_new_counter += 1
         training_tracker.rewards.append(episode_rewards)
-        policy.update(scene_rewards, gamma, log_probs)
-
-        episode_trajectories.append(episode_envs)
+        training_tracker.trajectories.append(episode_grids)
 
     # return the trained model,
-    return policy_network, training_episode_rewards, episode_trajectories
+    return policy_network, training_tracker
 
-def test(env: Env, agent: Agent, policy: nn.Module, num_episodes: int = 10):
+def test(env: rlm.Env, agent: Agent, policy: nn.Module, num_episodes: int = 10):
 
     max_num_scenes = grid_shape[0] * grid_shape[1]
     env.create_new()
@@ -448,7 +547,8 @@ def test(env: Env, agent: Agent, policy: nn.Module, num_episodes: int = 10):
         while not done:
             episode_envs.append(env.render_as_char(env.grid))
             state = environment.State(env, agent)
-            action_distribution = policy.action_distribution(state.observation.flatten())
+            action_distribution = policy.action_distribution(
+                state.observation.flatten())
             a = action_distribution.sample()
 
             new_state, r, done, info = env.step(action_idx=a, state=state)
