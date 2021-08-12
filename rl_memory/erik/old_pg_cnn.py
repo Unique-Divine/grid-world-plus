@@ -5,9 +5,9 @@ from rl_memory.models.a2c.tools import plot_episode_rewards
 
 from rl_memory.custom_env.agents import Agent
 from rl_memory.custom_env.environment import Env, Observation
-from rl_memory.custom_env.representations import ImageTransforms
+from rl_memory.custom_env.representations import ImgTransforms
 
-it = ImageTransforms()
+it = ImgTransforms()
 
 # env hyperparams
 grid_shape = (5, 5)

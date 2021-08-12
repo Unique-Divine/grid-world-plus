@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import distributions
+import torch.optim
 import numpy as np
 import dataclasses
 import os, sys 
@@ -17,20 +18,17 @@ from rl_memory.custom_env import representations
 from rl_memory.custom_env import agents 
 from rl_memory.custom_env import environment
 from rl_memory.rl_algos import base
+from rl_memory.rl_algos import trackers
 
 # Type imports
 from typing import Dict, List, Iterable, Tuple, Optional
 Env = rlm.Env
 EnvStep = environment.EnvStep
-Observation = rlm.Observation
-State = rlm.State
-Agent = rlm.Agent
-RLAlgorithm = rlm.RLAlgorithm
 from torch import Tensor
 Array = np.ndarray
 Categorical = distributions.Categorical
 
-it = representations.ImageTransforms()
+it = representations.ImgTransforms()
 
 @dataclasses.dataclass
 class VPGHyperParameters:
@@ -64,10 +62,10 @@ class VPGNetwork(nn.Module):
         hidden_dim: int = h_params.hidden_dim
 
         # Model Architecture
-        self.convnet_encoder = self._get_convnet_encoder(
+        self.convnet_encoder: nn.Module = self._get_convnet_encoder(
             num_filters=num_filters, filter_size=filter_size)
 
-        lin_dim = num_filters * (obs_size[0] - filter_size) ** 2
+        lin_dim: int = num_filters * (obs_size[0] - filter_size) ** 2
 
         self.fc_layers = nn.Sequential(
             nn.Linear(lin_dim, hidden_dim),
@@ -125,7 +123,7 @@ class VPGNetwork(nn.Module):
         self.optimizer.step()
 
 @dataclasses.dataclass
-class VPGSceneTracker(rlm.SceneTracker):
+class VPGSceneTracker(trackers.SceneTracker):
     """Container class for tracking scene-level results.
 
     Attributes:
@@ -142,7 +140,7 @@ class VPGSceneTracker(rlm.SceneTracker):
     env_char_renders: List[Array] = []
 
 @dataclasses.dataclass
-class VPGEpisodeTracker(rlm.EpisodeTracker):
+class VPGEpisodeTracker(trackers.EpisodeTracker):
     """Container class for tracking episode-level results.
 
     Attributes:
@@ -162,7 +160,7 @@ class VPGEpisodeTracker(rlm.EpisodeTracker):
         # [torch.exp(dist.log_prob(i)) for i in dist.enumerate_support()]
 
 
-class VPGAlgo(rlm.RLAlgorithm):
+class VPGAlgo(base.RLAlgorithm):
     """Runs the Vanilla Policy Gradient algorithm.
 
     Args:
@@ -171,7 +169,7 @@ class VPGAlgo(rlm.RLAlgorithm):
         agent (rlm.Agent): [description]
     
     Attributes:
-        episode_tracker (rlm.EpisodeTracker): 
+        episode_tracker (trackers.EpisodeTracker): 
         env (rlm.Env): [description]
         agent (rlm.Agent): [description]
     """
@@ -187,8 +185,9 @@ class VPGAlgo(rlm.RLAlgorithm):
         self.episode_tracker = VPGEpisodeTracker()
 
     def run_algo(self, num_episodes: int, max_num_scenes: int):
-        scene_start: Tuple[rlm.Env, rlm.SceneTracker] = self.on_scene_start()
-        env, scene_tracker = scene_start
+        env: rlm.Env
+        scene_tracker: trackers.SceneTracker
+        env, scene_tracker = self.on_scene_start()
         for episode_idx in range(num_episodes):
             self.film_episode(env = env, 
                               policy_network = self.policy_network, 
@@ -201,7 +200,7 @@ class VPGAlgo(rlm.RLAlgorithm):
                 episode_tracker = self.episode_tracker,
                 scene_tracker = scene_tracker)
 
-    def on_scene_start(self) -> Tuple[rlm.Env, rlm.SceneTracker]:
+    def on_scene_start(self) -> Tuple[rlm.Env, trackers.SceneTracker]:
         self.env.reset()
         scene_tracker = VPGSceneTracker()
         return env, scene_tracker
@@ -219,7 +218,7 @@ class VPGAlgo(rlm.RLAlgorithm):
             done (bool): Whether or not the episode is finished.
         """
         # Observe environment
-        obs: Observation = environment.Observation(env, self.agent)
+        obs: rlm.Observation = environment.Observation(env, self.agent)
         action_distribution: Categorical = (
             self.policy_network.action_distribution(obs))
         action_idx: int = action_distribution.sample()
@@ -339,7 +338,7 @@ class VPGExperiment:
 
     def create_policy_network(self, 
                               env: rlm.Env, 
-                              obs: Observation) -> VPGNetwork:
+                              obs: rlm.Observation) -> VPGNetwork:
         action_dim: int = len(env.action_space)
         obs_size: torch.Size = obs.size()
         network_h_params = VPGHyperParameters(lr = self.lr)
@@ -403,28 +402,30 @@ class VPGExperiment:
             print(avg_episode_len)
         return policy_network
 
-    def pg_cnn_transfer(self) -> VPGNetwork:
-        """
-        Steps:
+    def experiment_vpg_transfer(self) -> VPGNetwork:
+        """Runs an experiment to see if the environment is solvable with VPG 
+        and pre-training on the easy environment. 
+
+        Experiment steps:
+        0. Initialize new env and policy network.
         1. Pretrain a network on the easy environment. 
-        2. Transfer it to the big environment with many holes to see if VPG can 
-            solve it.
+        2. Transfer learn on the big environment, which has many holes. 
         
         Returns:
             policy_network
         """
 
-        # Step 1
-        # init new env and get initial state
+        # Step 0: Initialize new env and policy network
         self.env.create_new()
-        obs: Observation = environment.Observation(self.env, self.agent)
+        obs: rlm.Observation = environment.Observation(self.env, self.agent)
         policy_network: VPGNetwork = self.create_policy_network(
             env = self.env, obs = obs)
+
+        # Step 1: Pretrain on the easy environment
         policy_network = self.pretrain_to_threshold(
             policy_network = policy_network)
 
-        # TODO: Change it to algorithm with 
-        # Step 2
+        # Step 2: Transfer learn on the big environment.
         rl_algo = VPGAlgo(
             policy_network = policy_network, 
             env = self.env,
@@ -448,9 +449,10 @@ james_bond: Agent = agents.Agent(4)
 env: rlm.Env = environment.Env(
     grid_shape=grid_shape, n_goals=n_goals, hole_pct=hole_pct)
 env.create_new()
-obs: Observation = environment.Observation(env, james_bond)
+obs: rlm.Observation = environment.Observation(env, james_bond)
 
-def train(env: rlm.Env = env, agent: Agent = james_bond, obs: Observation = obs,
+def train(env: rlm.Env = env, agent: rlm.Agent = james_bond, 
+          obs: rlm.Observation = obs,
           num_episodes = 20, gamma = .99, lr = 1e-3,  
           reset_frequency = 5):
 
@@ -485,7 +487,7 @@ def train(env: rlm.Env = env, agent: Agent = james_bond, obs: Observation = obs,
         scene_rewards = []
         while not done:
             episode_grids.append(env.render_as_char(env.grid))
-            obs: Observation = environment.Observation(env, agent)
+            obs: rlm.Observation = environment.Observation(env, agent)
             action_distribution = policy_network.action_distribution(
                 obs.flatten())
             # [torch.exp(action_dist.log_prob(i)) 
