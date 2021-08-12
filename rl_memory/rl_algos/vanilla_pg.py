@@ -159,6 +159,23 @@ class VPGEpisodeTracker(trackers.EpisodeTracker):
     distributions: List[Categorical] = []
         # [torch.exp(dist.log_prob(i)) for i in dist.enumerate_support()]
 
+class VPGTransferLearning(base.TransferLearningManagement):
+    """Manages the transfer learning process for Vanilla Policy Gradient."""
+
+    def __init__(self, transfer_freq: int):
+        self.transfer_freq = transfer_freq
+
+    def transfer(self, ep_idx: int, env: rlm.Env) -> rlm.Env:
+        """Transfers the agent to a random environment based on the transfer 
+        frequency attribute, 'freq'.
+        """
+
+        freq = self.transfer_freq
+        if (ep_idx % freq == 0) and (ep_idx > 0):
+            env.create_new() # Reset to a random environment (same params)
+        else:
+            env.reset() # Reset to the same environment
+        return env
 
 class VPGAlgo(base.RLAlgorithm):
     """Runs the Vanilla Policy Gradient algorithm.
@@ -177,18 +194,31 @@ class VPGAlgo(base.RLAlgorithm):
     def __init__(
             self, 
             policy_network: VPGNetwork, 
-            env: rlm.Env, 
-            agent: rlm.Agent):
+            env_like: rlm.Env, 
+            agent: rlm.Agent, 
+            transfer_mgmt: Optional[base.TransferLearningManagement] = None,
+            discount_factor: float = 0.99
+            ):
+            
         self.policy_network = policy_network
-        self.env = env
+        self.env_like = env_like
         self.agent = agent
+        self.transfer_mgmt: base.TransferLearningManagement = transfer_mgmt
+        self.discount_factor = discount_factor
+
         self.episode_tracker = VPGEpisodeTracker()
 
-    def run_algo(self, num_episodes: int, max_num_scenes: int):
-        env: rlm.Env
-        scene_tracker: trackers.SceneTracker
-        env, scene_tracker = self.on_scene_start()
+    def run_algo(
+            self, 
+            num_episodes: int, 
+            max_num_scenes: int,):
+        """TODO: docs"""
+
+        env: rlm.Env = self.env_like
         for episode_idx in range(num_episodes):
+            scene_tracker: trackers.SceneTracker   
+            env, scene_tracker = self.on_episode_start(
+                env = env, episode_idx = episode_idx)
             self.film_episode(env = env, 
                               policy_network = self.policy_network, 
                               scene_tracker = scene_tracker, 
@@ -200,8 +230,15 @@ class VPGAlgo(base.RLAlgorithm):
                 episode_tracker = self.episode_tracker,
                 scene_tracker = scene_tracker)
 
-    def on_scene_start(self) -> Tuple[rlm.Env, trackers.SceneTracker]:
-        self.env.reset()
+    def on_episode_start(
+            self, 
+            env: rlm.Env, 
+            episode_idx: int) -> Tuple[rlm.Env, trackers.SceneTracker]:
+        if self.transfer_mgmt is not None:
+            env = self.transfer_mgmt.transfer(
+                ep_idx = episode_idx, env = env)
+        else:
+            env.reset()
         scene_tracker = VPGSceneTracker()
         return env, scene_tracker
 
@@ -464,90 +501,46 @@ class VPGExperiment:
 #               Begin Experiment
 # ----------------------------------------------------------------------
 
-
-# initialize agent and an environment with no holes
-james_bond: rlm.Agent = agents.Agent(4)
-env: rlm.Env = environment.Env(
-    grid_shape = (3, 3), 
-    n_goals = 1, 
-    hole_pct = 0)
-env.create_new()
-obs: rlm.Observation = environment.Observation(
-    env = env, agent = james_bond, )
-
-def train(env: rlm.Env = env, 
-          obs: rlm.Observation = obs,
-          agent: rlm.Agent = james_bond, 
-          num_episodes = 20, gamma = .99, lr = 1e-3,  
+def train(env: rlm.Env, 
+          obs: rlm.Observation,
+          agent: rlm.Agent, 
+          num_episodes = 20, 
+          discount_factor: float = .99, 
+          lr = 1e-3,  
           transfer_freq = 5):
+    """
+    TODO: docs, test
+    """
 
     grid_shape: Tuple[int] = env.grid.shape
     max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
 
-    # init model
+    # Specify parameters
     obs_size: torch.Size = obs.observation.size
     action_dim: int = len(env.action_space)
-    h_params = VPGHyperParameters(lr = lr)
+    network_h_params = VPGHyperParameters(lr = lr)
     policy_network = VPGNetwork(
         obs_size = obs_size, action_dim = action_dim, 
-        h_params = h_params)
+        h_params = network_h_params)
+    episode_tracker_train = VPGEpisodeTracker()
+    transfer_mgmt_train = VPGTransferLearning(transfer_freq = transfer_freq)
 
-    # tracking important things
-    training_tracker = VPGEpisodeTracker()
+    # Run RL algorithm
+    training_algo = VPGAlgo(
+        policy_network = policy_network, 
+        env_like = env, 
+        agent = agent, 
+        episode_tracker = episode_tracker_train, 
+        transfer_mgmt = transfer_mgmt_train, 
+        discount_factor = discount_factor)
+    training_algo.run_algo(
+        num_episodes = num_episodes, max_num_scenes = max_num_scenes)
 
-    for episode_idx in range(num_episodes):
-        print(f"episode {episode_idx}")
+    return policy_network, episode_tracker_train
 
-        # evaluate policy on current init conditions 5 times before switching to new init conditions
-        if (episode_idx % transfer_freq == 0) and (episode_idx > 0):
-            env.create_new() # Reset to a random environment (same params)
-        else:
-            env.reset() # Reset to the same environment
+def test(env: rlm.Env, agent: rlm.Agent, policy: nn.Module, num_episodes: int = 10):
 
-        done = False
-        log_probs = []  # tracks log prob of each action taken in a scene
-
-        episode_grids = []  # so you can see what the agent did in the episode
-
-        scene_number = 0  # track to be able to terminate episodes that drag on for too long
-        scene_rewards = []
-        while not done:
-            episode_grids.append(env.render_as_char(env.grid))
-            obs: rlm.Observation = environment.Observation(env, agent)
-            action_distribution = policy_network.action_distribution(
-                obs.flatten())
-            # [torch.exp(action_dist.log_prob(i)) 
-            # for i in action_dist.enumerate_support()] - see probs
-            action_idx: int = action_distribution.sample()
-            assert action_idx in np.arange(0, action_dim).tolist()
-
-            log_probs.append(action_distribution.log_prob(
-                action_idx).unsqueeze(0))
-            next_obs, reward, done, info = env.step(
-                action_idx = action_idx, obs = obs)  
-
-            scene_number += 1
-            if scene_number > max_num_scenes:
-                reward = -1
-                scene_rewards.append(reward)
-                break
-
-            if done:
-                episode_grids.append(env.render_as_char(env.grid))
-
-            scene_rewards.append(reward)
-        policy_network.update(scene_rewards, gamma, log_probs)
-
-        episode_rewards = np.sum(scene_rewards)
-        training_tracker.rewards.append(episode_rewards)
-        training_tracker.trajectories.append(episode_grids)
-
-    # return the trained model,
-    return policy_network, training_tracker
-
-def test(env: rlm.Env, agent: Agent, policy: nn.Module, num_episodes: int = 10):
-
-    max_num_scenes = grid_shape[0] * grid_shape[1]
+    max_num_scenes = env.grid_shape[0] * env.grid_shape[1]
     env.create_new()
 
     episode_trajectories = []
@@ -580,12 +573,33 @@ def test(env: rlm.Env, agent: Agent, policy: nn.Module, num_episodes: int = 10):
     return episode_rewards, episode_trajectories
 
 def main():
+
+    # initialize agent and an environment with no holes
+    james_bond: rlm.Agent = agents.Agent(4)
+    env: rlm.Env = environment.Env(
+        grid_shape = (10, 10), 
+        n_goals = 1, 
+        hole_pct = 0.4)
+    env.create_new()
+    obs: rlm.Observation = environment.Observation(env=env, agent=james_bond)
+
     episode_trajectories: Dict[List] = {}
-    policy_network, training_episode_rewards, episode_trajectories['train'] = train()
-    rl_memory.tools.plot_episode_rewards(training_episode_rewards, "training rewards", 5)
+    episode_rewards: Dict[List[float]] = {}
+    policy_network, episode_tracker = train(
+        env=env, obs=obs, agent=james_bond, num_episodes = 20)
+    episode_trajectories['train'] = episode_tracker.trajectories
+    episode_rewards['train'] =  episode_tracker.rewards
+    rl_memory.tools.plot_episode_rewards(
+        values = episode_rewards['train'], 
+        title = "training rewards", 
+        reset_frequency = 5)
+    
     test_env = environment.Env(
-        grid_shape=grid_shape, n_goals=n_goals, hole_pct=hole_pct)
+        grid_shape=env.grid_shape, n_goals=env.n_goals, hole_pct=env.hole_pct)
 
     test_episode_rewards, episode_trajectories['test'] = test(
-        env = test_env, agent = james_bond, policy = policy_network, num_episodes = 10)
+        env = test_env, 
+        agent = james_bond, 
+        policy = policy_network, 
+        num_episodes = 10)
     rl_memory.tools.plot_episode_rewards(test_episode_rewards, "test rewards", transfer_freq=5)
