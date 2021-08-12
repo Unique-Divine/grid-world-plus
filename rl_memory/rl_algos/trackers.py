@@ -17,8 +17,8 @@ class EpisodeTracker(abc.ABC):
             equivalent to reward if the episode has length one. 
     """
 
-    rewards: List[float] = []
-    returns: List[float] = []
+    rewards: List[float] = dataclasses.field(default_factory=list)
+    returns: List[float] = dataclasses.field(default_factory=list)
      
 @dataclasses.dataclass
 class SceneTracker(abc.ABC):
@@ -28,5 +28,5 @@ class SceneTracker(abc.ABC):
         rewards (List[float]): Scene rewards. Defaults to empty list.
         discounted_rewards (Array): Scene discounted rewards. Defaults to None.
     """
-    rewards: List[float] = [] 
+    rewards: List[float] = dataclasses.field(default_factory=list) 
     discounted_rewards: Array = None

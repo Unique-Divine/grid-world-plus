@@ -17,14 +17,12 @@ access_root_dir(depth = 0)
 import rl_memory
 from rl_memory.custom_env import environment
 from rl_memory.custom_env import agents
-from rl_memory.rl_algos import base_classes
 from rl_memory.rl_algos import trackers
 
 Env = environment.Env
 Agent = agents.Agent
 Observation = environment.Observation
 EnvStep = environment.EnvStep
-RLAlgorithm = base_classes.RLAlgorithm
 EpisodeTracker = trackers.EpisodeTracker
 SceneTracker = trackers.SceneTracker
 
