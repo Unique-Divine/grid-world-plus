@@ -17,8 +17,9 @@ from rl_memory.custom_env import representations
 from rl_memory.custom_env import agents 
 from rl_memory.custom_env import environment
 from rl_memory.rl_algos import base
+
 # Type imports
-from typing import Dict, List, Iterable, Tuple
+from typing import Dict, List, Iterable, Tuple, Optional
 Env = rlm.Env
 EnvStep = environment.EnvStep
 Observation = rlm.Observation
@@ -124,7 +125,7 @@ class VPGNetwork(nn.Module):
         self.optimizer.step()
 
 @dataclasses.dataclass
-class VPGSceneTracker:
+class VPGSceneTracker(rlm.SceneTracker):
     """Container class for tracking scene-level results.
 
     Attributes:
@@ -136,12 +137,12 @@ class VPGSceneTracker:
             Used for visualizing how the agent moves.
     """
     rewards: List[float] = [] 
-    discounted_rewards: Array = None
+    discounted_rewards: Optional[Array] = None
     log_probs: List[float] = [] 
     env_char_renders: List[Array] = []
 
 @dataclasses.dataclass
-class VPGEpisodeTracker:
+class VPGEpisodeTracker(rlm.EpisodeTracker):
     """Container class for tracking episode-level results.
 
     Attributes:
@@ -162,22 +163,39 @@ class VPGEpisodeTracker:
 
 
 class VPGAlgo(rlm.RLAlgorithm):
-    def __init__(self, agent: Agent):
+    def __init__(
+            self, 
+            policy_network: VPGNetwork, 
+            env: rlm.Env, 
+            agent: rlm.Agent):
+        self.policy_network = policy_network
+        self.env = env
         self.agent = agent
-        self.max_num_scenes: int
+        self.episode_tracker = VPGEpisodeTracker()
 
-    def run_algo(self):
+    def run_algo(self, num_episodes: int, max_num_scenes: int):
         scene_start: Tuple[rlm.Env, rlm.SceneTracker] = self.on_scene_start()
         env, scene_tracker = scene_start
-        for episode_idx in range(self.num_episodes):
-            self.film_epsiode() 
-            self.update_policy_network()
-            self.on_episode_end()
+        for episode_idx in range(num_episodes):
+            self.film_episode(env = env, 
+                              policy_network = self.policy_network, 
+                              scene_tracker = scene_tracker, 
+                              max_num_scenes = max_num_scenes) 
+            self.update_policy_network(
+                policy_network = self.policy_network,
+                scene_tracker = scene_tracker)
+            self.on_episode_end(
+                episode_tracker = self.episode_tracker,
+                scene_tracker = scene_tracker)
+
+    def on_scene_start(self) -> Tuple[rlm.Env, rlm.SceneTracker]:
+        self.env.reset()
+        scene_tracker = VPGSceneTracker()
+        return env, scene_tracker
 
     def film_scene(
         self,
         env: rlm.Env, 
-        policy_network: VPGNetwork, 
         scene_tracker: VPGSceneTracker) -> bool:
         """Runs a scene. A scene is one step of an episode.
 
@@ -190,7 +208,7 @@ class VPGAlgo(rlm.RLAlgorithm):
         # Observe environment
         obs: Observation = environment.Observation(env, self.agent)
         action_distribution: Categorical = (
-            policy_network.action_distribution(obs))
+            self.policy_network.action_distribution(obs))
         action_idx: int = action_distribution.sample()
 
         # Perform action
@@ -215,8 +233,8 @@ class VPGAlgo(rlm.RLAlgorithm):
     def film_episode(
             self, 
             env: rlm.Env, 
-            policy_network: VPGNetwork, 
-            scene_tracker: VPGSceneTracker):
+            scene_tracker: VPGSceneTracker, 
+            max_num_scenes: int):
         """Runs an episode.
 
         Args:
@@ -227,14 +245,17 @@ class VPGAlgo(rlm.RLAlgorithm):
         done: bool = False
         while not done:
             done: bool = self.film_scene(
-                env = env, policy_network = policy_network, scene_tracker = scene_tracker)
+                env = env, 
+                policy_network = self.policy_network, 
+                scene_tracker = scene_tracker)
 
             t += 1
             if done:  
                 self.on_scene_end(env = env, scene_tracker = scene_tracker)
                 break
-            elif self.agent_took_too_long(time = t,
-                                    max_time = self.max_num_scenes):
+            elif self.agent_took_too_long(
+                time = t,
+                max_time = max_num_scenes):
                 scene_tracker.rewards[-1] = -1  
                 done = True
             else:
@@ -242,7 +263,6 @@ class VPGAlgo(rlm.RLAlgorithm):
 
     def update_policy_network(
             self,
-            policy_network: VPGNetwork,
             scene_tracker: VPGSceneTracker):
         """Updates the weights and biases of the policy network."""
         discounted_rewards: Array = rl_memory.tools.discount_rewards(
@@ -252,9 +272,10 @@ class VPGAlgo(rlm.RLAlgorithm):
         baselines = np.zeros(discounted_rewards.shape)
         advantages = discounted_rewards - baselines
         assert len(scene_tracker.log_probs == len(advantages)), "MISMATCH!"
-        policy_network.update(scene_tracker.log_probs, advantages)
+        self.policy_network.update(scene_tracker.log_probs, advantages)
 
     def on_episode_end(
+            self,
             episode_tracker: VPGEpisodeTracker,
             scene_tracker: VPGSceneTracker):
         """Stores episode results and any other actions at episode end.
@@ -292,7 +313,6 @@ class VPGExperiment:
         self.grid_shape = env.grid_shape
         self.num_goals = env.num_goals
         self.hole_pct = env.hole_pct
-        self.custom_env = None
 
         self.agent = agent
         self.episode_tracker = episode_tracker
@@ -315,15 +335,6 @@ class VPGExperiment:
             h_params = network_h_params)
         return policy_network
 
-    def init_env(self, use_custom=False) -> Env:
-        if use_custom:
-            env: rlm.Env = self.custom_env
-        else:
-            env: rlm.Env = self.env
-
-        env.create_new()
-        return env
-
     @staticmethod
     def easy_env() -> Env:
         """
@@ -335,23 +346,19 @@ class VPGExperiment:
         easy_env.reset()
         return easy_env
 
-    def pretrain_on_easy_env(self, policy_network: VPGNetwork):
+    def pretrain_on_easy_env(
+            self, 
+            rl_algo: VPGAlgo, 
+            policy_network: VPGNetwork):
         """TODO docstring
         Methods come from RLAlgorithm
         """
-
-        for episode_idx in range(self.num_episodes):
-            env = self.easy_env() # as opposed to env.reset()
-            scene_tracker = VPGSceneTracker()
-
-            film_episode(env = env, scene_tracker = scene_tracker)
-            update_policy_network(
-                policy_network = policy_network,
-                scene_tracker = scene_tracker)
-            on_episode_end(
-                episode_tracker = self.episode_tracker,
-                scene_tracker = scene_tracker)
-        return policy_network
+        rl_algo = VPGAlgo(agent = self.agent, policy_network = policy_network)
+        rl_algo.run_algo(
+            num_episodes = self.num_episodes, 
+            max_num_scenes = self.max_num_scenes)
+        
+        return rl_algo.policy_network
 
     def pretrain_to_threshold(
         self, 
@@ -369,7 +376,11 @@ class VPGExperiment:
         avg_scene_len = np.infty
 
         while avg_scene_len > scene_len_threshold:
+            rl_algo = VPGAlgo(
+                policy_network = policy_network,
+                agent = self.agent)
             policy_network = self.pretrain_on_easy_env(
+                rl_algo = rl_algo,
                 policy_network = policy_network)
             avg_scene_len = np.mean(
                 [len(traj) for traj in self.episode_tracker.trajectories[
