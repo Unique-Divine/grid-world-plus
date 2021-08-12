@@ -313,32 +313,57 @@ class VPGExperiment:
     
     Args:
         env (Env): 
-        agent (Agent):
+        agent (rlm.Agent): 
         episode_tracker (VPGEpisodeTracker):
+        num_episodes (int): Number of episodes to evaluate the agent. Defaults 
+            to 10000.
+        discount_factor (float): Factor used to discount rewards. 
+            Denoted γ (gamma) in the RL literature. Defaults to 0.99.
+        transfer_freq (int): Th number of episodes the environment will remain 
+            constant before randomizing for transfer learning. Defaults to 10.
+        lr (float): Policy network learning rate. 
+            Denoted α (alpha) in the RL literature. Defaults to 1e-3.
+    
+    Attributes:
+        agent (rlm.Agent): 
+        episode_tracker (VPGEpisodeTracker):
+        num_episodes (int): Number of episodes to evaluate the agent. Defaults 
+            to 10000.
+        discount_factor (float): Factor used to discount rewards. A.K.A. gamma
+            in the RL literature. Defaults to 0.99.
+        transfer_freq (int): Th number of episodes the environment will remain 
+            constant before randomizing for transfer learning. Defaults to 10.
+        lr (float): Policy network learning rate. 
+            Denoted α (alpha) in the RL literature. Defaults to 1e-3.
     """
     def __init__(self, 
                  env: rlm.Env, 
-                 agent: Agent, 
-                 episode_tracker: VPGEpisodeTracker):
-
-        # env
-        self.grid_shape = env.grid_shape
-        self.num_goals = env.num_goals
-        self.hole_pct = env.hole_pct
+                 agent: rlm.Agent, 
+                 episode_tracker: VPGEpisodeTracker, 
+                 num_episodes: int = 10000, 
+                 discount_factor: float = 0.99, 
+                 transfer_freq: int = 10, 
+                 lr: float = 1e-3):
 
         self.agent = agent
         self.episode_tracker = episode_tracker
 
-        # learning hyperparams
-        self.num_episodes = 10000
-        self.discount_factor = .99 # gamma
-        self.lr = 1e-3
-        self.reset_frequency = 10
-        self.max_num_scenes = 3 * self.grid_shape[0] * self.grid_shape[1]
+        # Environment parameters
+        self.grid_shape = env.grid_shape
+        self.num_goals = env.num_goals
+        self.hole_pct = env.hole_pct
 
-    def create_policy_network(self, 
-                              env: rlm.Env, 
-                              obs: rlm.Observation) -> VPGNetwork:
+        # Experiment hyperparams
+        self.num_episodes = num_episodes
+        self.discount_factor = discount_factor
+        self.lr = lr
+        self.transfer_freq = transfer_freq
+        self.max_num_scenes: int = 3 * self.grid_shape[0] * self.grid_shape[1]
+
+    def create_policy_network(
+            self, 
+            env: rlm.Env, 
+            obs: rlm.Observation) -> VPGNetwork:
         action_dim: int = len(env.action_space)
         obs_size: torch.Size = obs.size()
         network_h_params = VPGHyperParameters(lr = self.lr)
@@ -454,7 +479,7 @@ def train(env: rlm.Env = env,
           obs: rlm.Observation = obs,
           agent: rlm.Agent = james_bond, 
           num_episodes = 20, gamma = .99, lr = 1e-3,  
-          reset_frequency = 5):
+          transfer_freq = 5):
 
     grid_shape: Tuple[int] = env.grid.shape
     max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
@@ -474,7 +499,7 @@ def train(env: rlm.Env = env,
         print(f"episode {episode_idx}")
 
         # evaluate policy on current init conditions 5 times before switching to new init conditions
-        if (episode_idx % reset_frequency == 0) and (episode_idx > 0):
+        if (episode_idx % transfer_freq == 0) and (episode_idx > 0):
             env.create_new() # Reset to a random environment (same params)
         else:
             env.reset() # Reset to the same environment
@@ -563,4 +588,4 @@ def main():
 
     test_episode_rewards, episode_trajectories['test'] = test(
         env = test_env, agent = james_bond, policy = policy_network, num_episodes = 10)
-    rl_memory.tools.plot_episode_rewards(test_episode_rewards, "test rewards", reset_frequency=5)
+    rl_memory.tools.plot_episode_rewards(test_episode_rewards, "test rewards", transfer_freq=5)
