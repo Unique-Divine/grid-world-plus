@@ -5,8 +5,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from rl_memory.custom_env import environment
-from rl_memory.custom_env import agents
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 from rl_memory.experiments import vpg_experiments
 import numpy as np
@@ -32,7 +31,7 @@ class TestVPGInits:
     
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = agents.Agent(sight_distance = 4)
+        james_bond = environment.Agent(sight_distance = 4)
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(
             agent = james_bond, 
@@ -88,7 +87,7 @@ class TestVPGExperiment:
 
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = agents.Agent(sight_distance = 4)
+        james_bond = environment.Agent(sight_distance = 4)
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(
             agent = james_bond, 

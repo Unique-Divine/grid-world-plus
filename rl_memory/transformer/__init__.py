@@ -16,8 +16,8 @@ access_root_dir()
 import rl_memory
 import warnings; warnings.filterwarnings("ignore")
 
-# from rl_memory.custom_env.agents import Agent
-# from rl_memory.custom_env.environment import (
+# from rl_memory.rlm_env.agents import Agent
+# from rl_memory.rlm_env.environment import (
 #     Point, Env, PathMaker, Observation, State)
 
 # __all__ = [

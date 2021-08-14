@@ -11,14 +11,3 @@ def access_root_dir(depth = 1):
     sys.path.append(rel_path) 
 
 access_root_dir(depth = 1)
-
-from rl_memory.custom_env.agents import Agent
-from rl_memory.custom_env.environment import Point, Env, PathMaker, Observation
-
-__all__ = [
-    'Point',
-    'Env',
-    'PathMaker',
-    'Observation',
-    'Agent',
-]

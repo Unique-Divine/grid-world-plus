@@ -9,8 +9,7 @@ except:
     import rl_memory
 import rl_memory as rlm
 import rl_memory.tools
-from rl_memory.custom_env import environment
-from rl_memory.custom_env import agents
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 
 from typing import Optional, Tuple, Dict, List
@@ -43,14 +42,15 @@ class PretrainingExperiment:
         lr (float): Policy network learning rate. 
             Denoted α (alpha) in the RL literature. Defaults to 1e-3.
     """
-    def __init__(self, 
-                 env: rlm.Env, 
-                 agent: rlm.Agent, 
-                 episode_tracker: vpg.VPGEpisodeTracker, 
-                 num_episodes: int = 10000, 
-                 discount_factor: float = 0.99, 
-                 transfer_freq: int = 10, 
-                 lr: float = 1e-3):
+    def __init__(
+        self, 
+        env: rlm.Env, 
+        agent: rlm.Agent, 
+        episode_tracker: vpg.VPGEpisodeTracker = vpg.VPGEpisodeTracker(), 
+        num_episodes: int = 10000, 
+        discount_factor: float = 0.99, 
+        transfer_freq: int = 10, 
+        lr: float = 1e-3):
 
         self.agent = agent
         self.episode_tracker = episode_tracker
@@ -73,7 +73,7 @@ class PretrainingExperiment:
             obs: rlm.Observation) -> vpg.VPGPolicyNN:
         action_dim: int = len(env.action_space)
         obs_size: torch.Size = obs.size()
-        nn_hparams = vpg.NetworkHyperParameters(lr = self.lr)
+        nn_hparams = vpg.NNHyperParameters(lr = self.lr)
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
@@ -200,7 +200,7 @@ class UnnamedExperiment:
         # Specify parameters
         obs_size: torch.Size = obs.observation.size
         action_dim: int = len(env.action_space)
-        nn_hparams = vpg.NetworkHyperParameters(lr = lr)
+        nn_hparams = vpg.NNHyperParameters(lr = lr)
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
@@ -275,7 +275,7 @@ class UnnamedExperiment:
     def main(self):
 
         # initialize agent and an environment with no holes
-        james_bond: rlm.Agent = agents.Agent(4)
+        james_bond: rlm.Agent = environment.Agent(4)
         env: rlm.Env = environment.Env(
             grid_shape = (10, 10), 
             n_goals = 1, 

@@ -14,9 +14,8 @@ except:
 import rl_memory as rlm
 import rl_memory.memory
 import rl_memory.tools
-from rl_memory.custom_env import representations 
-from rl_memory.custom_env import agents 
-from rl_memory.custom_env import environment
+from rl_memory.rlm_env import representations 
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import base
 from rl_memory.rl_algos import trackers
 

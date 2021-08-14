@@ -10,13 +10,14 @@ import torch
 import random
 import copy
 import warnings; warnings.filterwarnings("ignore")
-from rl_memory.custom_env import environment
-from rl_memory.custom_env.agents import Agent
+from rl_memory.rlm_env import environment
+
 # Type imports
 from typing import List, Tuple
 from torch import Tensor
 Array = np.ndarray
 Env = environment.Env
+Agent = environment.Agent
 PathMaker = environment.PathMaker
 
 def init_env() -> Tuple[Env, PathMaker]:

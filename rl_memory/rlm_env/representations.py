@@ -13,7 +13,7 @@ try:
     import rl_memory
 except:
     exec(open('__init__.py').read()); import rl_memory
-from rl_memory.custom_env import environment
+from rl_memory.rlm_env import environment
 from rl_memory.tests import test_environment
 
 # pop out the state (s_0, a_0)

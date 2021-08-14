@@ -52,6 +52,36 @@ class Point(np.ndarray):
             raise ValueError(f"args: {args}, type(args[0]): {type(args[0])}")
         return self
 
+class Agent:
+    """[summary] TODO -> docs
+
+    Args:
+        sight_distance (int, optional): How far in each direction the agent can 
+            see in the environmet. Defaults to 4.
+
+    Attributes:
+        sight_distance (int)
+    """
+
+    def __init__(self, sight_distance: int = 4) -> None:
+        self._sight_distance: int = sight_distance 
+        self.policy = None # TODO
+        pass # TODO
+
+    @property
+    def sight_distance(self) -> int:
+        return self._sight_distance
+
+    @sight_distance.setter
+    def sight_distance(self, value: int):
+        if isinstance(value, int):
+            self._sight_distance = value
+        else:
+            raise TypeError("'sight_distance' must be an integer.")
+    
+    # def __repr__(self):
+        # return self.__class__.__name__
+
 class Observation(torch.Tensor):
     """An observation of the environment, i.e. what is observed by an agent.
 
@@ -75,7 +105,7 @@ class Observation(torch.Tensor):
     Attributes:
         center_abs (Point): The agent's position in the 'env.grid'.
         center (Point): The agent's position in the current sight window.
-        agent (Agent)
+        agent (rlm.Agent)
     """
     def __new__(cls, 
                 agent: 'rlm.Agent',
@@ -217,11 +247,12 @@ class Env:
     'perfect' agent can get reward 1 on every episode.
     
     Args:
-        grid_shape (list-like): The matrix dimensions of the environment. 
-        hole_pct (float): The probability of any open spot to be a hole.
+        grid_shape (list-like, optional): The matrix dimensions of the environment. 
+        hole_pct (float, optional): The probability of any open spot to be a hole.
             An "open spot" is any spot on the grid that is not an agent, 
-            goal, or blocked.   
-        n_goals (int): Defaults to 1.
+            goal, or blocked. Defaults to 0.2. 
+        n_goals (int, optional): Number of goals in the environment. Reaching a goal gives
+            a positive reward signal. Defaults to 2.
     
     Attributes:
         interactables (dict): key-value pairs for the various items that can 
@@ -231,14 +262,15 @@ class Env:
         grid (np.ndarray): A matrix with the encodings for each interactable. 
 
     Examples:
-    ---------
+
     >>> import rl_memory as rlm
     >>> env = rlm.Env() # initializes an environment
     >>> env.reset() # creates or resets the environment
-    >>> james_bond = rlm.Agent(4)
+    >>> james_bond = rlm.Agent(sight_distance = 4)
 
-    # An episode could then look like:
     ```python
+    # An episode could then look like:
+    replay_buffer: list = []
     done = False
     while done!= True:  
         obs = rlm.Observation(env=env, agent=james_bond) 
@@ -251,7 +283,7 @@ class Env:
     interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
                               'agent': 7, 'blocked': 3}
 
-    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 3):
+    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 2):
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
             raise ValueError("'grid_shape' must be a list-like of length 2.")
