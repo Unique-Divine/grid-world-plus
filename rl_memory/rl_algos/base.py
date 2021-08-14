@@ -19,7 +19,7 @@ class RLAlgorithm(abc.ABC):
         env, scene_tracker = scene_start
         for episode_idx in range(self.num_episodes):
             self.film_epsiode() 
-            self.update_policy_network()
+            self.update_policy_nn()
             self.on_episode_end()
     ```
     """
@@ -52,7 +52,7 @@ class RLAlgorithm(abc.ABC):
         """Runs an episode."""
 
     @abc.abstractmethod
-    def update_policy_network(self, *args: Any, **kwargs: Any):
+    def update_policy_nn(self, *args: Any, **kwargs: Any):
         """Updates the weights and biases of the neural network(s)."""
 
     @abc.abstractmethod
@@ -82,7 +82,7 @@ class RLAlgorithm(abc.ABC):
             env, scene_tracker = scene_start
             for episode_idx in range(self.num_episodes):
                 self.film_epsiode() 
-                self.update_policy_network()
+                self.update_policy_nn()
                 self.on_episode_end()
         ```
         """

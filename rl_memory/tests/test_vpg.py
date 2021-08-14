@@ -31,25 +31,25 @@ class TestVPGInits:
         return env
     
     def default_experiment_setup(self) \
-                                -> Tuple[rlm.Env, rlm.Agent, vpg.VPGNetwork]:
+                                -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
         james_bond = agents.Agent(sight_distance = 4)
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(
             agent = james_bond, 
             env = env)
         obs_size = obs.size()
-        network_h_params = vpg.NetworkHyperParameters(lr = 1e-3)
-        policy_network = vpg.VPGNetwork(
+        network_h_params = vpg.NNHyperParameters(lr = 1e-3)
+        policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
-        return env, james_bond, policy_network
+        return env, james_bond, policy_nn
 
     def test_placeholder(self):
         return 'yuh'
         raise NotImplementedError
 
-    def test_init_NetworkHyperParameters(self):
-        network_hparams = vpg.NetworkHyperParameters(lr = 1e-3)
+    def test_init_NNHyperParameters(self):
+        network_hparams = vpg.NNHyperParameters(lr = 1e-3)
         assert network_hparams
     
     def test_init_VPGTransferLearning(self):
@@ -57,20 +57,20 @@ class TestVPGInits:
         assert transfer_mgmt
     
     def test_VPGAlgo(self):
-        env, agent, policy_network = self.default_experiment_setup()
+        env, agent, policy_nn = self.default_experiment_setup()
         rl_algo = vpg.VPGAlgo(
-            policy_network=policy_network, 
+            policy_nn = policy_nn, 
             env_like = env, 
             agent = agent)
         rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
 
     def test_VPGAlgo_w_transfer(self):
-        env, agent, policy_network = self.default_experiment_setup()
+        env, agent, policy_nn = self.default_experiment_setup()
         
         transfer_freqs: List[int] = [1, 2, 3]
         for transfer_freq in transfer_freqs:
             rl_algo = vpg.VPGAlgo(
-                policy_network=policy_network, 
+                policy_nn = policy_nn, 
                 env_like = env, 
                 agent = agent, 
                 transfer_mgmt = vpg.VPGTransferLearning(
@@ -87,21 +87,21 @@ class TestVPGExperiment:
         return env
 
     def default_experiment_setup(self) \
-                                -> Tuple[rlm.Env, rlm.Agent, vpg.VPGNetwork]:
+                                -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
         james_bond = agents.Agent(sight_distance = 4)
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(
             agent = james_bond, 
             env = env)
         obs_size = obs.size()
-        network_h_params = vpg.NetworkHyperParameters(lr = 1e-3)
-        policy_network = vpg.VPGNetwork(
+        network_h_params = vpg.NNHyperParameters(lr = 1e-3)
+        policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
-        return env, james_bond, policy_network
+        return env, james_bond, policy_nn
 
     def test_init_VPGExperiment(self):
-        env, agent, policy_network = self.default_experiment_setup()
+        env, agent, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
@@ -110,7 +110,7 @@ class TestVPGExperiment:
         assert experiment
 
     def test_easy_env(self):
-        env, agent, policy_network = self.default_experiment_setup()
+        env, agent, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
@@ -120,13 +120,13 @@ class TestVPGExperiment:
         assert isinstance(easy_env, environment.Env)
 
     def test_pretrain_on_easy_env(self):
-        env, agent, policy_network = self.default_experiment_setup()
+        env, agent, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
             episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
-        experiment.pretrain_on_easy_env(policy_network = policy_network)
+        experiment.pretrain_on_easy_env(policy_nn = policy_nn)
 
     def test_pretrain_to_threshold(self):
         return 'yuh' # TODO

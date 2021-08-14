@@ -31,7 +31,7 @@ Categorical = distributions.Categorical
 it = representations.ImgTransforms()
 
 @dataclasses.dataclass
-class NetworkHyperParameters:
+class NNHyperParameters:
     """Hyperparameters for the policy network.
     
     Q: How do hyperparameters differ from the model parameters?
@@ -72,7 +72,7 @@ class NetworkHyperParameters:
         assert (dropout_pct >= 0) and (dropout_pct <= 1), (
             f"'dropout_pct' must be between 0 and 1, not {dropout_pct}")
 
-class VPGNetwork(nn.Module):
+class VPGPolicyNN(nn.Module):
     """Neural network for vanilla policy gradient. Used in the first experiment
     
     Args:
@@ -81,7 +81,7 @@ class VPGNetwork(nn.Module):
         
     """
     def __init__(self, obs_size: torch.Size, action_dim: int, 
-                 h_params: NetworkHyperParameters):
+                 h_params: NNHyperParameters):
         super().__init__()
         self.batch_size: int = h_params.batch_size
         num_filters: int = h_params.num_filters
@@ -208,7 +208,7 @@ class VPGAlgo(base.RLAlgorithm):
     """Runs the Vanilla Policy Gradient algorithm.
 
     Args:
-        policy_network (VPGNetwork): [description]
+        policy_nn (VPGPolicyNN): [description]
         env (rlm.Env): [description]
         agent (rlm.Agent): [description]
     
@@ -220,14 +220,14 @@ class VPGAlgo(base.RLAlgorithm):
 
     def __init__(
             self, 
-            policy_network: VPGNetwork, 
+            policy_nn: VPGPolicyNN, 
             env_like: rlm.Env, 
             agent: rlm.Agent, 
             transfer_mgmt: Optional[base.TransferLearningManagement] = None,
             discount_factor: float = 0.99
             ):
             
-        self.policy_network = policy_network
+        self.policy_nn = policy_nn
         self.env_like = env_like
         self.agent = agent
         self.transfer_mgmt: base.TransferLearningManagement = transfer_mgmt
@@ -243,9 +243,9 @@ class VPGAlgo(base.RLAlgorithm):
         """TODO: docs"""
         train_val: str = "train" if training else "val"
         if train_val == "train":
-            self.policy_network.train()
+            self.policy_nn.train()
         else:
-            self.policy_network.eval()
+            self.policy_nn.eval()
 
         env: rlm.Env = self.env_like
         for episode_idx in range(num_episodes):
@@ -256,7 +256,7 @@ class VPGAlgo(base.RLAlgorithm):
                               scene_tracker = scene_tracker, 
                               max_num_scenes = max_num_scenes) 
             if train_val == "train":
-                self.update_policy_network(
+                self.update_policy_nn(
                     scene_tracker = scene_tracker)
             self.on_episode_end(
                 episode_tracker = self.episode_tracker,
@@ -290,7 +290,7 @@ class VPGAlgo(base.RLAlgorithm):
         obs: rlm.Observation = environment.Observation(
             env = env, agent = self.agent)
         action_distribution: Categorical = (
-            self.policy_network.action_distribution(obs))
+            self.policy_nn.action_distribution(obs))
         action_idx: int = action_distribution.sample()
 
         # Perform action
@@ -342,7 +342,7 @@ class VPGAlgo(base.RLAlgorithm):
             else:
                 continue
 
-    def update_policy_network(
+    def update_policy_nn(
             self,
             scene_tracker: VPGSceneTracker):
         """Updates the weights and biases of the policy network."""
@@ -353,7 +353,7 @@ class VPGAlgo(base.RLAlgorithm):
         baselines = np.zeros(discounted_rewards.shape)
         advantages = discounted_rewards - baselines
         assert len(scene_tracker.log_probs) == len(advantages), "MISMATCH!"
-        self.policy_network.update(scene_tracker.log_probs, advantages)
+        self.policy_nn.update(scene_tracker.log_probs, advantages)
 
     def on_episode_end(
             self,
@@ -376,287 +376,3 @@ class VPGAlgo(base.RLAlgorithm):
             scene_tracker.env_char_renders)
         episode_tracker.distributions.append(
             scene_tracker.log_probs)
-
-class VPGExperiment:
-    """formerly pg_cnn.py
-    
-    Args:
-        env (Env): 
-        agent (rlm.Agent): 
-        episode_tracker (VPGEpisodeTracker):
-        num_episodes (int): Number of episodes to evaluate the agent. Defaults 
-            to 10000.
-        discount_factor (float): Factor used to discount rewards. 
-            Denoted γ (gamma) in the RL literature. Defaults to 0.99.
-        transfer_freq (int): Th number of episodes the environment will remain 
-            constant before randomizing for transfer learning. Defaults to 10.
-        lr (float): Policy network learning rate. 
-            Denoted α (alpha) in the RL literature. Defaults to 1e-3.
-    
-    Attributes:
-        agent (rlm.Agent): 
-        episode_tracker (VPGEpisodeTracker):
-        num_episodes (int): Number of episodes to evaluate the agent. Defaults 
-            to 10000.
-        discount_factor (float): Factor used to discount rewards. A.K.A. gamma
-            in the RL literature. Defaults to 0.99.
-        transfer_freq (int): Th number of episodes the environment will remain 
-            constant before randomizing for transfer learning. Defaults to 10.
-        lr (float): Policy network learning rate. 
-            Denoted α (alpha) in the RL literature. Defaults to 1e-3.
-    """
-    def __init__(self, 
-                 env: rlm.Env, 
-                 agent: rlm.Agent, 
-                 episode_tracker: VPGEpisodeTracker, 
-                 num_episodes: int = 10000, 
-                 discount_factor: float = 0.99, 
-                 transfer_freq: int = 10, 
-                 lr: float = 1e-3):
-
-        self.agent = agent
-        self.episode_tracker = episode_tracker
-
-        # Environment parameters
-        self.grid_shape = env.grid.shape
-        self.num_goals = env.n_goals
-        self.hole_pct = env.hole_pct
-
-        # Experiment hyperparams
-        self.num_episodes = num_episodes
-        self.discount_factor = discount_factor
-        self.lr = lr
-        self.transfer_freq = transfer_freq
-        self.max_num_scenes: int = 3 * self.grid_shape[0] * self.grid_shape[1]
-
-    def create_policy_network(
-            self, 
-            env: rlm.Env, 
-            obs: rlm.Observation) -> VPGNetwork:
-        action_dim: int = len(env.action_space)
-        obs_size: torch.Size = obs.size()
-        network_h_params = NetworkHyperParameters(lr = self.lr)
-        policy_network = VPGNetwork(
-            obs_size = obs_size, action_dim = action_dim, 
-            h_params = network_h_params)
-        return policy_network
-
-    @staticmethod
-    def easy_env() -> Env:
-        """
-        Returns:
-            (Env): A small, 3 by 3 environment with one goal and one hole.
-        """
-        easy_env: rlm.Env = environment.Env(
-            grid_shape=(3, 3), n_goals=1, hole_pct=.1)
-        easy_env.reset()
-        return easy_env
-
-    def pretrain_on_easy_env(
-            self, 
-            policy_network: VPGNetwork):
-        """TODO docstring
-        Methods come from RLAlgorithm
-        """
-        easy_env = self.easy_env()
-        rl_algo = VPGAlgo(
-            policy_network = policy_network,
-            env_like = easy_env,
-            agent = self.agent, )
-        rl_algo.run_algo(
-            num_episodes = self.num_episodes, 
-            max_num_scenes = self.max_num_scenes)
-        
-        return rl_algo.policy_network
-
-    def pretrain_to_threshold(
-        self, 
-        policy_network: VPGNetwork, 
-        ep_len_threshold: float = 3.3, 
-        trajectory_lookback_window: int = 500) -> VPGNetwork:
-        """Recursively trains the agent (policy network) on an easy environment
-        until it can solve it quickly and consistently.
-
-        Args:
-            policy_network (VPGNetwork): The network that receives pre-training. 
-            ep_len_threshold (float): Defaults to 3.3.
-            trajectory_lookback_window (int): Defaults to 500.
-        
-        Returns
-            policy_network (VPGNetwork): Pre-trained network.
-        """
-
-        avg_episode_len = np.infty
-
-        while avg_episode_len > ep_len_threshold:
-            policy_network = self.pretrain_on_easy_env(
-                policy_network = policy_network)
-            avg_episode_len = np.mean(
-                [len(traj) for traj in self.episode_tracker.trajectories[
-                     -trajectory_lookback_window:]])
-            print(avg_episode_len)
-        return policy_network
-
-    def experiment_vpg_transfer(
-        self, policy_network: Optional[VPGNetwork] = None) -> VPGNetwork:
-        """Runs an experiment to see if the environment is solvable with VPG 
-        and pre-training on the easy environment. 
-
-        Experiment steps:
-        0. Initialize new env and policy network.
-        1. Pretrain a network on the easy environment. 
-        2. Transfer learn on the big environment, which has many holes. 
-        
-        Returns:
-            policy_network
-        """
-
-        # Step 0: Initialize new env and policy network
-        self.env.create_new()
-        obs: rlm.Observation = environment.Observation(self.env, self.agent)
-        if not policy_network:
-            policy_network: VPGNetwork = self.create_policy_network(
-                env = self.env, obs = obs)
-
-        # Step 1: Pretrain on the easy environment
-        policy_network = self.pretrain_to_threshold(
-            policy_network = policy_network)
-
-        # Step 2: Transfer learn on the big environment.
-        rl_algo = VPGAlgo(
-            policy_network = policy_network, 
-            env = self.env,
-            agent = self.Agent)
-        rl_algo.run_algo(
-            num_episodes = self.num_episodes,
-            max_num_scenes = self.max_num_scenes)
-        return policy_network
-
-# ----------------------------------------------------------------------
-#               Begin Experiment
-# ----------------------------------------------------------------------
-
-def train(env: rlm.Env, 
-          obs: rlm.Observation,
-          agent: rlm.Agent, 
-          num_episodes = 20, 
-          discount_factor: float = .99, 
-          lr = 1e-3,  
-          transfer_freq = 5):
-    """
-    TODO: 
-        docs
-        test
-    """
-
-    grid_shape: Tuple[int] = env.grid.shape
-    max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
-
-    # Specify parameters
-    obs_size: torch.Size = obs.observation.size
-    action_dim: int = len(env.action_space)
-    network_h_params = NetworkHyperParameters(lr = lr)
-    policy_network = VPGNetwork(
-        obs_size = obs_size, action_dim = action_dim, 
-        h_params = network_h_params)
-    episode_tracker_train = VPGEpisodeTracker()
-    transfer_mgmt_train = VPGTransferLearning(transfer_freq = transfer_freq)
-
-    # Run RL algorithm
-    training_algo = VPGAlgo(
-        policy_network = policy_network, 
-        env_like = env, 
-        agent = agent, 
-        episode_tracker = episode_tracker_train, 
-        transfer_mgmt = transfer_mgmt_train, 
-        discount_factor = discount_factor)
-    training_algo.run_algo(
-        num_episodes = num_episodes, max_num_scenes = max_num_scenes)
-
-    return policy_network, episode_tracker_train
-
-def test(env: rlm.Env, agent: rlm.Agent, policy: nn.Module, num_episodes: int = 10):
-    """[summary]
-    TODO: 
-        docs
-        test
-
-    Args:
-        env (rlm.Env): [description]
-        agent (rlm.Agent): [description]
-        policy (nn.Module): [description]
-        num_episodes (int, optional): [description]. Defaults to 10.
-
-    Returns:
-        [type]: [description]
-    """
-
-    max_num_scenes = env.grid_shape[0] * env.grid_shape[1]
-    env.create_new()
-
-    episode_trajectories = []
-    episode_rewards = []
-
-    for e in range(num_episodes):
-
-        episode_envs = []
-        reward_sum = 0
-        scene_number = 0
-        done: bool = False
-
-        while not done:
-            episode_envs.append(env.render_as_char(env.grid))
-            state = environment.State(env, agent)
-            action_distribution = policy.action_distribution(
-                state.observation.flatten())
-            a = action_distribution.sample()
-
-            new_state, r, done, info = env.step(action_idx=a, state=state)
-            reward_sum += r
-
-            scene_number += 1
-            if scene_number > max_num_scenes:
-                break
-
-        episode_trajectories.append(episode_envs)
-        episode_rewards.append(reward_sum)
-
-    return episode_rewards, episode_trajectories
-
-def main():
-
-    # initialize agent and an environment with no holes
-    james_bond: rlm.Agent = agents.Agent(4)
-    env: rlm.Env = environment.Env(
-        grid_shape = (10, 10), 
-        n_goals = 1, 
-        hole_pct = 0.4)
-    env.create_new()
-    obs: rlm.Observation = environment.Observation(env=env, agent=james_bond)
-
-    datasets = ["train", "test"]
-    episode_trajectories: Dict[List] = {}
-    episode_rewards: Dict[List[float]] = {}
-
-    dataset = "train"
-    policy_network, episode_tracker = train(
-        env=env, obs=obs, agent=james_bond, num_episodes = 20)
-    episode_trajectories[dataset] = episode_tracker.trajectories
-    episode_rewards[dataset] =  episode_tracker.rewards
-    rl_memory.tools.plot_episode_rewards(
-        values = episode_rewards[dataset], 
-        title = f"{dataset} rewards", 
-        reset_frequency = 5)
-
-    dataset = "test"
-    test_env = environment.Env(
-        grid_shape=env.grid_shape, n_goals=env.n_goals, hole_pct=env.hole_pct)
-    test_episode_rewards, episode_trajectories['test'] = test(
-        env = test_env, 
-        agent = james_bond, 
-        policy = policy_network, 
-        num_episodes = 10)
-    rl_memory.tools.plot_episode_rewards(
-        values = episode_rewards[dataset], 
-        title = f"{dataset} rewards", 
-        reset_frequency = 5)
