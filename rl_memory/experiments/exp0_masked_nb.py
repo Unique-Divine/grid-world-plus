@@ -17,8 +17,8 @@ except:
     import rl_memory
 from rl_memory.custom_env import environment
 from rl_memory.custom_env import agents
-from rl_memory.tests import test_environment
 from rl_memory.custom_env import representations
+from rl_memory.tests import test_environment
 
 # In[2]:
 
