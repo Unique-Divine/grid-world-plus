@@ -1,11 +1,22 @@
-"""[summary]
+"""Module that defines custom grid environment with an API similar to AI Gym.
+
+An agent moves around in the grid. The agent is...
+1. Rewarded for reaching a goal.
+2. Punished for falling in a hole.
+3. Punished for taking too many scenes to solve.
+
 
 Classes:
-    Env
-    Observation
-    ObservationSeq
-    EnvStep: A step in the environment
-    Point
+    Env: A custom grid environment with an API similar to that of AI Gym. 
+    Observation: An observation of the environment, i.e. what is observed 
+        by an agent. 
+    ObservationSeq: TODO -> docs, dev
+    EnvStep: A step in the environment  
+    Agent: Pairs with an instance of 'Env' to describe an agent's 'Observation'.
+        An agent is not a property of an environment, so it may make more sense 
+        to move sight_distance to be a property of the 'Observation' instance.
+    Point: A 1D np.ndarray of size 2 that contains the row and column
+        indices for a point in the environment 
     PathMaker: Helper class that guarantees the environment is solvable.
 """
 import numpy as np
@@ -31,8 +42,8 @@ class Point(np.ndarray):
     """A 1D np.ndarray of size 2 that contains the row and column
     indices for a point in the environment.  
 
-    Examples
-    --------
+    Examples:
+
     >>> p1 = Point(1, 2)
     >>> p1
     array([1, 2], dtype=int16)
@@ -53,7 +64,9 @@ class Point(np.ndarray):
         return self
 
 class Agent:
-    """[summary] TODO -> docs
+    """Pairs with an instance of 'Env' to describe an agent's 'Observation'.
+    An agent is not a property of an environment, so it may make more sense to
+    move sight_distance to be a property of the 'Observation' instance instead.
 
     Args:
         sight_distance (int, optional): How far in each direction the agent can 
@@ -187,7 +200,7 @@ class Observation(torch.Tensor):
         return f"{Env.render_as_char(grid = obs_grid)}"
 
 class ObservationSeq(list):
-    """[summary]
+    """[summary] TODO -> docs, dev
 
     Args:
         observations (List[Observation]): 
@@ -241,10 +254,17 @@ class EnvStep:
         return self.values[idx]
 
 class Env:
-    """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with
-    a varying starting position for the agent, holes, and goal(s). Movements are
-    deterministic rather than stochastic and each environment is solvable, so a
-    'perfect' agent can get reward 1 on every episode.
+    """A custom grid environment with an API similar to that of AI Gym. 
+    
+    An agent moves around in the grid. The agent is...
+    1. Rewarded for reaching a goal.
+    2. Punished for falling in a hole.
+    3. Punished for taking too many scenes to solve.
+
+    This grid environment allows for varying starting position for the agent, 
+    holes, and goal(s). Movements are deterministic rather than stochastic and 
+    each environment is solvable, so a "perfect" agent can get reward 1 
+    on every episode.
     
     Args:
         grid_shape (list-like, optional): The matrix dimensions of the environment. 
