@@ -132,4 +132,11 @@ class TestVPGExperiment:
             num_episodes = 3, transfer_freq = 1 )
         experiment.pretrain_on_easy_env(policy_network=policy_network)
 
+    def test_pretrain_to_threshold(self):
+        return 'yuh' # TODO
+        raise NotImplementedError
         
+    def test_experiment_vpg_transfer(self):
+        return 'yuh' # TODO
+        raise NotImplementedError
+    
