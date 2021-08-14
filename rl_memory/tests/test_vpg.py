@@ -8,6 +8,7 @@ import rl_memory as rlm
 from rl_memory.custom_env import environment
 from rl_memory.custom_env import agents
 from rl_memory.rl_algos import vpg
+from rl_memory.experiments import vpg_experiments
 import numpy as np
 import torch
 import random
@@ -101,7 +102,7 @@ class TestVPGExperiment:
 
     def test_init_VPGExperiment(self):
         env, agent, policy_network = self.default_experiment_setup()
-        experiment = vpg.VPGExperiment(
+        experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
             episode_tracker = vpg.VPGEpisodeTracker(),
@@ -110,7 +111,7 @@ class TestVPGExperiment:
 
     def test_easy_env(self):
         env, agent, policy_network = self.default_experiment_setup()
-        experiment = vpg.VPGExperiment(
+        experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
             episode_tracker = vpg.VPGEpisodeTracker(),
@@ -120,7 +121,7 @@ class TestVPGExperiment:
 
     def test_pretrain_on_easy_env(self):
         env, agent, policy_network = self.default_experiment_setup()
-        experiment = vpg.VPGExperiment(
+        experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
             episode_tracker = vpg.VPGEpisodeTracker(),
