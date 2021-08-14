@@ -91,6 +91,7 @@ class Observation(torch.Tensor):
             raise ValueError(
                 "Some format of environment must be given. Any of the 'env', "
                 + "'env_grid', or 'env_char_grid' arguments will suffice.")
+
         env_interactables = Env().interactables
         if env_grid is not None:
             env_position_space = Env(grid_shape=env_grid.shape).position_space
@@ -105,9 +106,17 @@ class Observation(torch.Tensor):
             env_position_space = env.position_space
             env_grid = env.grid
 
+        assert env.grid is not None
+        assert env_position_space is not None
+
         center: Point = Point([agent.sight_distance] * 2)
         is_agent: np.ndarray = (env_grid == env_interactables['agent'])
-        env_agent_position = Point(np.argwhere(is_agent)[0].tolist())
+
+        env_agent_indices: np.ndarray = np.argwhere(is_agent)
+        if env_agent_indices.size == 0:
+            raise ValueError("There's no agent in this environment. Try using "
+                             + "'env.reset()' before making this Observation.")
+        env_agent_position = Point(env_agent_indices[0].tolist())
         center_abs: Point = env_agent_position
 
         def observe() -> Tensor:
@@ -194,6 +203,12 @@ class EnvStep:
 
     def __post_init__(self):
         self.values = (self.next_obs, self.reward, self.done, self.info)
+
+    def __len__(self):
+        return len(self.values)
+    
+    def __getitem__(self, idx):
+        return self.values[idx]
 
 class Env:
     """A variable Frozen Lake environment. It's the Frozen Lake from AI Gym with

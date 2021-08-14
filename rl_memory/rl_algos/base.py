@@ -19,7 +19,7 @@ class RLAlgorithm(abc.ABC):
         env, scene_tracker = scene_start
         for episode_idx in range(self.num_episodes):
             self.film_epsiode() 
-            self.update_policy_network()
+            self.update_policy_nn()
             self.on_episode_end()
     ```
     """
@@ -34,9 +34,9 @@ class RLAlgorithm(abc.ABC):
         """
     
     @abc.abstractmethod
-    def on_scene_start(self) -> Tuple[rlm.Env, rlm.SceneTracker, Optional[Any]]:
-        """Called at the beginning of a scene. Initializes the environment and 
-        scene tracker."""
+    def on_episode_start(self) -> Tuple[rlm.Env, rlm.SceneTracker, Optional[Any]]:
+        """Called at the beginning of an episode. Initializes the environment 
+        and tracks results with the scene tracker."""
 
     @abc.abstractmethod
     def on_scene_end(self):
@@ -52,7 +52,7 @@ class RLAlgorithm(abc.ABC):
         """Runs an episode."""
 
     @abc.abstractmethod
-    def update_policy_network(self, *args: Any, **kwargs: Any):
+    def update_policy_nn(self, *args: Any, **kwargs: Any):
         """Updates the weights and biases of the neural network(s)."""
 
     @abc.abstractmethod
@@ -82,7 +82,21 @@ class RLAlgorithm(abc.ABC):
             env, scene_tracker = scene_start
             for episode_idx in range(self.num_episodes):
                 self.film_epsiode() 
-                self.update_policy_network()
+                self.update_policy_nn()
                 self.on_episode_end()
         ```
         """
+
+class TransferLearningManagement(abc.ABC):
+    """Abstract object that manages the transfer learning process."""
+
+    @abc.abstractmethod
+    def __init__(self, transfer_freq: int):
+        self.transfer_freq = transfer_freq
+
+    @abc.abstractmethod
+    def transfer(self, ep_idx: int, env: rlm.Env, *args: Any) -> rlm.Env:
+        """Transfers the agent to a random environment based on the transfer 
+        frequency attribute, 'freq'.
+        """
+
