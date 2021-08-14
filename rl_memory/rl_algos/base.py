@@ -34,9 +34,9 @@ class RLAlgorithm(abc.ABC):
         """
     
     @abc.abstractmethod
-    def on_scene_start(self) -> Tuple[rlm.Env, rlm.SceneTracker, Optional[Any]]:
-        """Called at the beginning of a scene. Initializes the environment and 
-        scene tracker."""
+    def on_episode_start(self) -> Tuple[rlm.Env, rlm.SceneTracker, Optional[Any]]:
+        """Called at the beginning of an episode. Initializes the environment 
+        and tracks results with the scene tracker."""
 
     @abc.abstractmethod
     def on_scene_end(self):
