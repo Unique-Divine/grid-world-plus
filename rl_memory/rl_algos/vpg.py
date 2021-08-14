@@ -497,7 +497,8 @@ class VPGExperiment:
             print(avg_episode_len)
         return policy_network
 
-    def experiment_vpg_transfer(self) -> VPGNetwork:
+    def experiment_vpg_transfer(
+        self, policy_network: Optional[VPGNetwork] = None) -> VPGNetwork:
         """Runs an experiment to see if the environment is solvable with VPG 
         and pre-training on the easy environment. 
 
@@ -513,8 +514,9 @@ class VPGExperiment:
         # Step 0: Initialize new env and policy network
         self.env.create_new()
         obs: rlm.Observation = environment.Observation(self.env, self.agent)
-        policy_network: VPGNetwork = self.create_policy_network(
-            env = self.env, obs = obs)
+        if not policy_network:
+            policy_network: VPGNetwork = self.create_policy_network(
+                env = self.env, obs = obs)
 
         # Step 1: Pretrain on the easy environment
         policy_network = self.pretrain_to_threshold(
