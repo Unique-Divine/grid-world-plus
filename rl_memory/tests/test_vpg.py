@@ -17,6 +17,8 @@ from typing import List, Tuple, Optional
 from torch import Tensor
 Array = np.ndarray
 
+import pytest
+
 class TestVPGInits:
     """Verifies that all of the abstract classes and concrete classes of 
     the vanilla policy gradient instantiate correctly.
@@ -31,7 +33,7 @@ class TestVPGInits:
     
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = rlm_env.Agent(sight_distance = 4)
+        james_bond = rlm_env.Agent()
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = rlm_env.Observation(
             agent = james_bond, 
@@ -76,7 +78,7 @@ class TestVPGInits:
                     transfer_freq = transfer_freq))
             rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
 
-class TestVPGExperiment:  
+class TestPretrainingExperiment:  
     
     @staticmethod
     def init_env() -> rlm.Env:
@@ -99,12 +101,11 @@ class TestVPGExperiment:
             h_params = network_h_params)
         return env, james_bond, policy_nn
 
-    def test_init_VPGExperiment(self):
+    def test_init_PretrainingExperiment(self):
         env, agent, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
-            episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         assert experiment
 
@@ -113,7 +114,6 @@ class TestVPGExperiment:
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
-            episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         easy_env: rlm.Env = experiment.easy_env()
         assert isinstance(easy_env, rlm_env.Env)
@@ -123,7 +123,6 @@ class TestVPGExperiment:
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
             agent = agent, 
-            episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         experiment.pretrain_on_easy_env(policy_nn = policy_nn)
 

@@ -148,42 +148,46 @@ class VPGPolicyNN(nn.Module):
         loss.backward()
         self.optimizer.step()
 
-@dataclasses.dataclass
 class VPGSceneTracker(trackers.SceneTracker):
     """Container class for tracking scene-level results.
 
     Attributes:
-        rewards (List[float]): Scene rewards. Defaults to empty list.
-        discounted_rewards (Array): Scene discounted rewards. Defaults to None.
+        scene_rewards (List[float]): Scene rewards. Defaults to empty list.
+        scene_disc_rewards (Array): Scene discounted rewards. Defaults to None.
         log_probs (List[float]): Scene log probabilities for the action chosen 
             by the agent. Defaults to empty list.
         env_char_renders (List[Array]): Character renders of the env grid. 
             Used for visualizing how the agent moves.
     """
-    rewards: List[float] = dataclasses.field(default_factory = list)
-    discounted_rewards: Optional[Array] = None
-    log_probs: List[float] = dataclasses.field(default_factory = list)
-    env_char_renders: List[Array] = dataclasses.field(default_factory = list)
 
-@dataclasses.dataclass
+    def __init__(self):
+        self.scene_rewards: List[float] = []
+        self.scene_disc_rewards: Array = None
+        self.log_probs: List[float] = []
+        self.env_char_renders: List[Array] = [] 
+        super().__post_init__()
+
 class VPGEpisodeTracker(trackers.EpisodeTracker):
     """Container class for tracking episode-level results.
 
     Attributes:
-        rewards (List[float]): List of total rewards for each episode. Each 
-            element of 'rewards' is the total reward for a particular episode.
-        returns (List[float]): List of total returns for each episode. Each 
-            element of 'returns' is the total discounted reward for a particular 
-            episode. Returns refers to the discounted reward. Thus, return is 
-            equivalent to reward if the episode has length one. 
+        episode_rewards (List[float]): List of total rewards for each episode. 
+            Each element of 'episode_rewards' is the total reward for a 
+            particular episode.
+        episode_disc_rewards (List[float]): List of episode total returns. Each 
+            element of 'episode_disc_rewards' is the total discounted reward 
+            for a particular episode. Note, "returns" is another term that 
+            refers to the discounted reward. 
         trajectories (List[]):
         distributions (List[Categorical]): 
     """
-    rewards: List[float] = dataclasses.field(default_factory = list)
-    returns: List[float] = dataclasses.field(default_factory = list)
-    trajectories: List = dataclasses.field(default_factory = list)
-    distributions: List[Categorical] = dataclasses.field(default_factory = list)
-        # [torch.exp(dist.log_prob(i)) for i in dist.enumerate_support()]
+    
+    def __init__(self):
+        self.episode_rewards: List[float] = []
+        self.episode_disc_rewards: List[float] = []
+        self.trajectories: List = []
+        self.distributions: List[Categorical] = []
+        super().__post_init__()
 
 class VPGTransferLearning(base.TransferLearningManagement):
     """Manages the transfer learning process for Vanilla Policy Gradient."""

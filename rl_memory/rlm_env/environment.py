@@ -19,6 +19,7 @@ Classes:
         indices for a point in the environment 
     PathMaker: Helper class that guarantees the environment is solvable.
 """
+
 import numpy as np
 import torch
 import os, sys
