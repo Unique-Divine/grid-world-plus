@@ -15,7 +15,7 @@ try:
 except:
     exec(open('__init__.py').read()) 
     import rl_memory
-from rl_memory.rlm_env import environment
+from rl_memory import rlm_env
 from rl_memory.rlm_env import agents
 from rl_memory.rlm_env import representations
 from rl_memory.tests import test_environment
@@ -41,8 +41,8 @@ img_trajs = []
 for traj in erik_trajs[-1000:]:
     img_traj = []
     for char_grid in traj:
-        obs = environment.Observation(
-            env_char_grid = char_grid, agent = environment.Agent(SIGHT_DISTANCE))
+        obs = rlm_env.Observation(
+            env_char_grid = char_grid, agent = rlm_env.Agent(SIGHT_DISTANCE))
         obs_img = it.grid_to_rgb(grid = obs).float()
         img_traj.append(obs_img)
     img_trajs.append(img_traj)

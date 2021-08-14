@@ -5,8 +5,8 @@ try:
 except:
     exec(open('__init__.py').read()) 
     import rl_memory
-from rl_memory.rlm_env import environment
-import environment.Observation
+from rl_memory import rlm_env
+import rlm_env.Observation
 
 class Memory:
 

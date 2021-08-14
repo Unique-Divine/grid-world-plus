@@ -15,14 +15,14 @@ import rl_memory as rlm
 import rl_memory.memory
 import rl_memory.tools
 from rl_memory.rlm_env import representations 
-from rl_memory.rlm_env import environment
+from rl_memory import rlm_env
 from rl_memory.rl_algos import base
 from rl_memory.rl_algos import trackers
 
 # Type imports
 from typing import Dict, List, Iterable, Tuple, Optional, Union
 Env = rlm.Env
-EnvStep = environment.EnvStep
+EnvStep = rlm_env.EnvStep
 from torch import Tensor
 Array = np.ndarray
 Categorical = distributions.Categorical
@@ -286,7 +286,7 @@ class VPGAlgo(base.RLAlgorithm):
             done (bool): Whether or not the episode is finished.
         """
         # Observe environment
-        obs: rlm.Observation = environment.Observation(
+        obs: rlm.Observation = rlm_env.Observation(
             env = env, agent = self.agent)
         action_distribution: Categorical = (
             self.policy_nn.action_distribution(obs))

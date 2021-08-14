@@ -22,16 +22,9 @@ import rl_memory
 import warnings
 warnings.filterwarnings("ignore")
 
-"""
-from rl_memory.rlm_env.environment import (
-    Point, Env, PathMaker, Observation, State)
-
-__all__ = [
-    'Point',
-    'Env',
-    'PathMaker',
-    'Observation',
-    'State',
-    'Agent',
-]
-"""
+from rl_memory.rlm_env import environment
+Env = environment.Env
+Agent = environment.Agent
+EnvStep = environment.EnvStep
+Observation = environment.Observation
+ObservationSeq = environment.ObservationSeq

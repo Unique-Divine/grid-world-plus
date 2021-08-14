@@ -5,7 +5,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from rl_memory.rlm_env import environment
+from rl_memory import rlm_env
 from rl_memory.rl_algos import vpg
 from rl_memory.experiments import vpg_experiments
 import numpy as np
@@ -24,16 +24,16 @@ class TestVPGInits:
 
     @staticmethod
     def init_env() -> rlm.Env:
-        env: rlm.Env = environment.Env(
+        env: rlm.Env = rlm_env.Env(
             grid_shape=(15,15), n_goals=4, hole_pct = 0.3)
         env.reset()
         return env
     
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = environment.Agent(sight_distance = 4)
+        james_bond = rlm_env.Agent(sight_distance = 4)
         env: rlm.Env = self.init_env()
-        obs: rlm.Observation = environment.Observation(
+        obs: rlm.Observation = rlm_env.Observation(
             agent = james_bond, 
             env = env)
         obs_size = obs.size()
@@ -80,16 +80,16 @@ class TestVPGExperiment:
     
     @staticmethod
     def init_env() -> rlm.Env:
-        env: rlm.Env = environment.Env(
+        env: rlm.Env = rlm_env.Env(
             grid_shape=(15,15), n_goals=4, hole_pct = 0.3)
         env.reset()
         return env
 
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = environment.Agent(sight_distance = 4)
+        james_bond = rlm_env.Agent(sight_distance = 4)
         env: rlm.Env = self.init_env()
-        obs: rlm.Observation = environment.Observation(
+        obs: rlm.Observation = rlm_env.Observation(
             agent = james_bond, 
             env = env)
         obs_size = obs.size()
@@ -116,7 +116,7 @@ class TestVPGExperiment:
             episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         easy_env: rlm.Env = experiment.easy_env()
-        assert isinstance(easy_env, environment.Env)
+        assert isinstance(easy_env, rlm_env.Env)
 
     def test_pretrain_on_easy_env(self):
         env, agent, policy_nn = self.default_experiment_setup()

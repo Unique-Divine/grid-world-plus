@@ -12,7 +12,7 @@ except:
     import rl_memory
 from rl_memory.models import DQN
 from rl_memory.rlm_env import agent
-from rl_memory.rlm_env import environment
+from rl_memory import rlm_env
 
 # buffer hyperparameters
 batchsize: int = 2  # batchsize for buffer sampling
@@ -33,8 +33,8 @@ list_of_episode_rewards = []  # records the reward per episode
 Qtarget_update_counter = 0  # count the number of steps taken before updating Qtarget
 
 # initialize environment and agent
-env = environment.Env(grid_shape=(3, 3), n_goals=1, hole_pct=0.1)
-james_bond = environment.Agent(4)
+env = rlm_env.Env(grid_shape=(3, 3), n_goals=1, hole_pct=0.1)
+james_bond = rlm_env.Agent(4)
 env.create()
 
 # initialize the principal and the target Q nets

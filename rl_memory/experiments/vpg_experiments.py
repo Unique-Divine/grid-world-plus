@@ -9,7 +9,7 @@ except:
     import rl_memory
 import rl_memory as rlm
 import rl_memory.tools
-from rl_memory.rlm_env import environment
+from rl_memory import rlm_env
 from rl_memory.rl_algos import vpg
 
 from typing import Optional, Tuple, Dict, List
@@ -85,7 +85,7 @@ class PretrainingExperiment:
         Returns:
             (Env): A small, 3 by 3 environment with one goal and one hole.
         """
-        easy_env: rlm.Env = environment.Env(
+        easy_env: rlm.Env = rlm_env.Env(
             grid_shape=(3, 3), n_goals=1, hole_pct=.1)
         easy_env.reset()
         return easy_env
@@ -152,7 +152,7 @@ class PretrainingExperiment:
 
         # Step 0: Initialize new env and policy network
         self.env.create_new()
-        obs: rlm.Observation = environment.Observation(self.env, self.agent)
+        obs: rlm.Observation = rlm_env.Observation(self.env, self.agent)
         if not policy_nn:
             policy_nn: vpg.VPGPolicyNN = self.create_policy_nn(
                 env = self.env, obs = obs)
@@ -275,13 +275,13 @@ class UnnamedExperiment:
     def main(self):
 
         # initialize agent and an environment with no holes
-        james_bond: rlm.Agent = environment.Agent(4)
-        env: rlm.Env = environment.Env(
+        james_bond: rlm.Agent = rlm_env.Agent(4)
+        env: rlm.Env = rlm_env.Env(
             grid_shape = (10, 10), 
             n_goals = 1, 
             hole_pct = 0.4)
         env.create_new()
-        obs: rlm.Observation = environment.Observation(env=env, agent=james_bond)
+        obs: rlm.Observation = rlm_env.Observation(env=env, agent=james_bond)
 
         episode_trajectories: Dict[List] = {}
         episode_rewards: Dict[List[float]] = {}
@@ -297,7 +297,7 @@ class UnnamedExperiment:
             reset_frequency = 5)
 
         dataset = "test"
-        test_env = environment.Env(
+        test_env = rlm_env.Env(
             grid_shape=env.grid_shape, n_goals=env.n_goals, hole_pct=env.hole_pct)
         test_episode_rewards, episode_trajectories['test'] = self.test(
             env = test_env, 

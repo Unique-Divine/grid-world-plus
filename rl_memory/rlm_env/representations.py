@@ -13,7 +13,7 @@ try:
     import rl_memory
 except:
     exec(open('__init__.py').read()); import rl_memory
-from rl_memory.rlm_env import environment
+from rl_memory import rlm_env
 from rl_memory.tests import test_environment
 
 # pop out the state (s_0, a_0)
@@ -72,7 +72,7 @@ def demo_show_plots():
     env = test_environment.init_env()[0]
     env.create_new()
     img_env = it.grid_to_rgb(grid = env.grid)
-    obs = environment.Observation(env=env, agent=environment.Agent(4))
+    obs = rlm_env.Observation(env=env, agent=rlm_env.Agent(4))
     img_obs = it.grid_to_rgb(grid = obs)
     for an_img in [img_env, img_obs]:
         it.show_rgb(an_img)
@@ -188,7 +188,7 @@ class TestImgEncoder:
         env.create_new()
 
         # Get observation as an image
-        obs = environment.Observation(env=env, agent=environment.Agent(
+        obs = rlm_env.Observation(env=env, agent=rlm_env.Agent(
             sight_distance = SIGHT_DISTANCE))
         img_transforms = ImgTransforms()
         img_width: int = 2*SIGHT_DISTANCE + 1
@@ -221,7 +221,7 @@ class TestImgTransfroms:
         it = ImgTransforms()
         env.create_new()
         env_img = it.grid_to_rgb(grid = env.grid)
-        obs = environment.Observation(env=env, agent=environment.Agent(4))
+        obs = rlm_env.Observation(env=env, agent=rlm_env.Agent(4))
         obs_img = it.grid_to_rgb(grid = obs)
         for img_tensor in [env_img, obs_img]:
             assert isinstance(img_tensor, Tensor)
