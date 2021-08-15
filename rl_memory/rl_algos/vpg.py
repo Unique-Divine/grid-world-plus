@@ -211,12 +211,21 @@ class VPGAlgo(base.RLAlgorithm):
     """Runs the Vanilla Policy Gradient algorithm.
 
     Args:
-        policy_nn (VPGPolicyNN): [description]
-        env (rlm.Env): [description]
+        policy_nn (VPGPolicyNN): 
+        env_like (rlm.Env): 
+        transfer_mgmt (Optional[base.TransferLearningManagement]): 
+            Defaults to None.
+        discount_factor: float = 0.99
     
     Attributes:
         episode_tracker (trackers.EpisodeTracker): 
-        env (rlm.Env): [description]
+        scene_tracker (trackers.SceneTracker):
+
+        policy_nn (VPGPolicyNN): 
+        env_like (rlm.Env): 
+        transfer_mgmt (Optional[base.TransferLearningManagement]): 
+            Defaults to None.
+        discount_factor: float = 0.99
     """
 
     def __init__(
@@ -233,6 +242,7 @@ class VPGAlgo(base.RLAlgorithm):
         self.discount_factor = discount_factor
 
         self.episode_tracker = VPGEpisodeTracker()
+        self.scene_tracker: VPGSceneTracker
 
     def run_algo(
             self, 
@@ -248,35 +258,27 @@ class VPGAlgo(base.RLAlgorithm):
 
         env: rlm.Env = self.env_like
         for episode_idx in range(num_episodes):
-            scene_tracker: trackers.SceneTracker   
-            env, scene_tracker = self.on_episode_start(
+            env = self.on_episode_start(
                 env = env, episode_idx = episode_idx)
             self.film_episode(env = env, 
-                              scene_tracker = scene_tracker, 
                               max_num_scenes = max_num_scenes) 
             if train_val == "train":
-                self.update_policy_nn(
-                    scene_tracker = scene_tracker)
-            self.on_episode_end(
-                episode_tracker = self.episode_tracker,
-                scene_tracker = scene_tracker)
+                self.update_policy_nn()
+            self.on_episode_end()
 
     def on_episode_start(
             self, 
             env: rlm.Env, 
-            episode_idx: int) -> Tuple[rlm.Env, trackers.SceneTracker]:
+            episode_idx: int) -> rlm.Env:
         if self.transfer_mgmt is not None:
             env = self.transfer_mgmt.transfer(
                 ep_idx = episode_idx, env = env)
         else:
             env.reset()
-        scene_tracker = VPGSceneTracker()
-        return env, scene_tracker
+        self.scene_tracker = VPGSceneTracker()
+        return env
 
-    def film_scene(
-        self,
-        env: rlm.Env, 
-        scene_tracker: VPGSceneTracker) -> bool:
+    def film_scene(self, env: rlm.Env) -> bool:
         """Runs a scene. A scene is one step of an episode.
 
         Args:
@@ -296,14 +298,14 @@ class VPGAlgo(base.RLAlgorithm):
             action_idx = action_idx, obs = obs)
         next_obs, reward, done, info = env_step
         
-        scene_tracker.log_probs.append(action_distribution.log_prob(
+        self.scene_tracker.log_probs.append(action_distribution.log_prob(
             action_idx).unsqueeze(0))
-        scene_tracker.scene_rewards.append(reward)
-        scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
+        self.scene_tracker.scene_rewards.append(reward)
+        self.scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
         return done
     
-    def on_scene_end(self, env: rlm.Env, scene_tracker: VPGSceneTracker):
-        scene_tracker.env_char_renders.append(
+    def on_scene_end(self, env: rlm.Env):
+        self.scene_tracker.env_char_renders.append(
             env.render_as_char(env.grid))
     
     @staticmethod
@@ -313,7 +315,6 @@ class VPGAlgo(base.RLAlgorithm):
     def film_episode(
             self, 
             env: rlm.Env, 
-            scene_tracker: VPGSceneTracker, 
             max_num_scenes: int):
         """Runs an episode.
 
@@ -324,53 +325,44 @@ class VPGAlgo(base.RLAlgorithm):
         scene_idx = 0
         done: bool = False
         while not done:
-            done: bool = self.film_scene(
-                env = env, 
-                scene_tracker = scene_tracker)
+            done: bool = self.film_scene(env = env)
 
             scene_idx += 1
             if done:  
-                self.on_scene_end(env = env, scene_tracker = scene_tracker)
+                self.on_scene_end(env = env)
                 break
             elif self.agent_took_too_long(
                 time = scene_idx,
                 max_time = max_num_scenes):
-                scene_tracker.scene_rewards[-1] = -1  
+                self.scene_tracker.scene_rewards[-1] = -1  
                 done = True
             else:
                 continue
 
-    def update_policy_nn(
-            self,
-            scene_tracker: VPGSceneTracker):
+    def update_policy_nn(self):
         """Updates the weights and biases of the policy network."""
         scene_disc_rewards: Array = rl_memory.tools.discount_rewards(
-            rewards = scene_tracker.scene_rewards, 
+            rewards = self.scene_tracker.scene_rewards, 
             discount_factor = self.discount_factor)
-        scene_tracker.scene_disc_rewards = scene_disc_rewards
+        self.scene_tracker.scene_disc_rewards = scene_disc_rewards
         baselines = np.zeros(scene_disc_rewards.shape)
         advantages = scene_disc_rewards - baselines
-        assert len(scene_tracker.log_probs) == len(advantages), "MISMATCH!"
-        self.policy_nn.update(scene_tracker.log_probs, advantages)
 
-    def on_episode_end(
-            self,
-            episode_tracker: VPGEpisodeTracker,
-            scene_tracker: VPGSceneTracker):
+        self.policy_nn.update(
+            log_probs = self.scene_tracker.log_probs, 
+            advantages = advantages)
+
+    def on_episode_end(self):
         """Stores episode results and any other actions at episode end.
-
-        Args:
-            episode_tracker (VPGEpisodeTracker): [description]
-            scene_tracker (VPGSceneTracker): [description]
 
         Returns:
             [type]: [description]
         """
-        total_scene_reward = np.sum(scene_tracker.scene_rewards)
-        total_scene_disc_reward = np.sum(scene_tracker.scene_disc_rewards)
-        episode_tracker.episode_rewards.append(total_scene_reward)
-        episode_tracker.episode_disc_rewards.append(total_scene_disc_reward)
-        episode_tracker.trajectories.append(
-            scene_tracker.env_char_renders)
-        episode_tracker.distributions.append(
-            scene_tracker.log_probs)
+        total_scene_reward = np.sum(self.scene_tracker.scene_rewards)
+        total_scene_disc_reward = np.sum(self.scene_tracker.scene_disc_rewards)
+        self.episode_tracker.episode_rewards.append(total_scene_reward)
+        self.episode_tracker.episode_disc_rewards.append(total_scene_disc_reward)
+        self.episode_tracker.trajectories.append(
+            self.scene_tracker.env_char_renders)
+        self.episode_tracker.distributions.append(
+            self.scene_tracker.log_probs)
