@@ -19,7 +19,6 @@ class PretrainingExperiment:
     
     Args:
         env (Env): 
-        agent (rlm.Agent): 
         episode_tracker (vpg.VPGEpisodeTracker):
         num_episodes (int): Number of episodes to evaluate the agent. Defaults 
             to 10000.
@@ -31,7 +30,6 @@ class PretrainingExperiment:
             Denoted α (alpha) in the RL literature. Defaults to 1e-3.
     
     Attributes:
-        agent (rlm.Agent): 
         episode_tracker (vpg.VPGEpisodeTracker):
         num_episodes (int): Number of episodes to evaluate the agent. Defaults 
             to 10000.
@@ -45,14 +43,12 @@ class PretrainingExperiment:
     def __init__(
         self, 
         env: rlm.Env, 
-        agent: rlm.Agent, 
         episode_tracker: vpg.VPGEpisodeTracker = vpg.VPGEpisodeTracker(), 
         num_episodes: int = 10000, 
         discount_factor: float = 0.99, 
         transfer_freq: int = 10, 
         lr: float = 1e-3):
 
-        self.agent = agent
         self.episode_tracker = episode_tracker
 
         # Environment parameters
@@ -99,8 +95,7 @@ class PretrainingExperiment:
         easy_env = self.easy_env()
         rl_algo = vpg.VPGAlgo(
             policy_nn = policy_nn,
-            env_like = easy_env,
-            agent = self.agent, )
+            env_like = easy_env,)
         rl_algo.run_algo(
             num_episodes = self.num_episodes, 
             max_num_scenes = self.max_num_scenes)
@@ -152,7 +147,7 @@ class PretrainingExperiment:
 
         # Step 0: Initialize new env and policy network
         self.env.create_new()
-        obs: rlm.Observation = rlm_env.Observation(self.env, self.agent)
+        obs: rlm.Observation = rlm_env.Observation(env = self.env)
         if not policy_nn:
             policy_nn: vpg.VPGPolicyNN = self.create_policy_nn(
                 env = self.env, obs = obs)
@@ -164,8 +159,7 @@ class PretrainingExperiment:
         # Step 2: Transfer learn on the big environment.
         rl_algo = vpg.VPGAlgo(
             policy_nn = policy_nn, 
-            env = self.env,
-            agent = self.Agent)
+            env = self.env,)
         rl_algo.run_algo(
             num_episodes = self.num_episodes,
             max_num_scenes = self.max_num_scenes)
@@ -183,7 +177,6 @@ class UnnamedExperiment:
 
     def train(env: rlm.Env, 
             obs: rlm.Observation,
-            agent: rlm.Agent, 
             num_episodes = 20, 
             discount_factor: float = .99, 
             lr = 1e-3,  
@@ -205,14 +198,13 @@ class UnnamedExperiment:
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
         episode_tracker_train = vpg.VPGEpisodeTracker()
-        transfer_mgmt_train = vpg.VPGTransferLearning(transfer_freq = transfer_freq)
+        transfer_mgmt_train = vpg.VPGTransferLearning(
+            transfer_freq = transfer_freq)
 
         # Run RL algorithm
         training_algo = vpg.VPGAlgo(
             policy_nn = policy_nn, 
             env_like = env, 
-            agent = agent, 
-            episode_tracker = episode_tracker_train, 
             transfer_mgmt = transfer_mgmt_train, 
             discount_factor = discount_factor)
         training_algo.run_algo(
@@ -222,7 +214,6 @@ class UnnamedExperiment:
 
     def test(self, 
              env: rlm.Env, 
-             agent: rlm.Agent, 
              policy: nn.Module, 
              num_episodes: int = 10):
         """[summary]
@@ -232,7 +223,6 @@ class UnnamedExperiment:
 
         Args:
             env (rlm.Env): [description]
-            agent (rlm.Agent): [description]
             policy (nn.Module): [description]
             num_episodes (int, optional): [description]. Defaults to 10.
 
@@ -255,12 +245,12 @@ class UnnamedExperiment:
 
             while not done:
                 episode_envs.append(env.render_as_char(env.grid))
-                state = environment.State(env, agent)
+                obs = rlm_env.Observation(env)
                 action_distribution = policy.action_distribution(
-                    state.observation.flatten())
+                    obs.flatten())
                 a = action_distribution.sample()
 
-                new_state, r, done, info = env.step(action_idx=a, state=state)
+                new_state, r, done, info = env.step(action_idx=a, obs=obs)
                 reward_sum += r
 
                 scene_number += 1
@@ -275,20 +265,19 @@ class UnnamedExperiment:
     def main(self):
 
         # initialize agent and an environment with no holes
-        james_bond: rlm.Agent = rlm_env.Agent(4)
         env: rlm.Env = rlm_env.Env(
             grid_shape = (10, 10), 
             n_goals = 1, 
             hole_pct = 0.4)
         env.create_new()
-        obs: rlm.Observation = rlm_env.Observation(env=env, agent=james_bond)
+        obs: rlm.Observation = rlm_env.Observation(env=env)
 
         episode_trajectories: Dict[List] = {}
         episode_rewards: Dict[List[float]] = {}
 
         dataset = "train"
         policy_nn, episode_tracker = self.train(
-            env=env, obs=obs, agent=james_bond, num_episodes = 20)
+            env=env, obs=obs, num_episodes = 20)
         episode_trajectories[dataset] = episode_tracker.trajectories
         episode_rewards[dataset] =  episode_tracker.rewards
         rlm.tools.plot_episode_rewards(
@@ -301,7 +290,6 @@ class UnnamedExperiment:
             grid_shape=env.grid_shape, n_goals=env.n_goals, hole_pct=env.hole_pct)
         test_episode_rewards, episode_trajectories['test'] = self.test(
             env = test_env, 
-            agent = james_bond, 
             policy = policy_nn, 
             num_episodes = 10)
         rlm.tools.plot_episode_rewards(

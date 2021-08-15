@@ -213,26 +213,22 @@ class VPGAlgo(base.RLAlgorithm):
     Args:
         policy_nn (VPGPolicyNN): [description]
         env (rlm.Env): [description]
-        agent (rlm.Agent): [description]
     
     Attributes:
         episode_tracker (trackers.EpisodeTracker): 
         env (rlm.Env): [description]
-        agent (rlm.Agent): [description]
     """
 
     def __init__(
             self, 
             policy_nn: VPGPolicyNN, 
             env_like: rlm.Env, 
-            agent: rlm.Agent, 
             transfer_mgmt: Optional[base.TransferLearningManagement] = None,
             discount_factor: float = 0.99
             ):
             
         self.policy_nn = policy_nn
         self.env_like = env_like
-        self.agent = agent
         self.transfer_mgmt: base.TransferLearningManagement = transfer_mgmt
         self.discount_factor = discount_factor
 
@@ -290,8 +286,7 @@ class VPGAlgo(base.RLAlgorithm):
             done (bool): Whether or not the episode is finished.
         """
         # Observe environment
-        obs: rlm.Observation = rlm_env.Observation(
-            env = env, agent = self.agent)
+        obs: rlm.Observation = rlm_env.Observation(env = env)
         action_distribution: Categorical = (
             self.policy_nn.action_distribution(obs))
         action_idx: int = action_distribution.sample()
@@ -303,7 +298,7 @@ class VPGAlgo(base.RLAlgorithm):
         
         scene_tracker.log_probs.append(action_distribution.log_prob(
             action_idx).unsqueeze(0))
-        scene_tracker.rewards.append(reward)
+        scene_tracker.scene_rewards.append(reward)
         scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
         return done
     
@@ -340,7 +335,7 @@ class VPGAlgo(base.RLAlgorithm):
             elif self.agent_took_too_long(
                 time = scene_idx,
                 max_time = max_num_scenes):
-                scene_tracker.rewards[-1] = -1  
+                scene_tracker.scene_rewards[-1] = -1  
                 done = True
             else:
                 continue
@@ -349,12 +344,12 @@ class VPGAlgo(base.RLAlgorithm):
             self,
             scene_tracker: VPGSceneTracker):
         """Updates the weights and biases of the policy network."""
-        discounted_rewards: Array = rl_memory.tools.discount_rewards(
-            rewards = scene_tracker.rewards, 
+        scene_disc_rewards: Array = rl_memory.tools.discount_rewards(
+            rewards = scene_tracker.scene_rewards, 
             discount_factor = self.discount_factor)
-        scene_tracker.discounted_rewards = discounted_rewards
-        baselines = np.zeros(discounted_rewards.shape)
-        advantages = discounted_rewards - baselines
+        scene_tracker.scene_disc_rewards = scene_disc_rewards
+        baselines = np.zeros(scene_disc_rewards.shape)
+        advantages = scene_disc_rewards - baselines
         assert len(scene_tracker.log_probs) == len(advantages), "MISMATCH!"
         self.policy_nn.update(scene_tracker.log_probs, advantages)
 
@@ -371,10 +366,10 @@ class VPGAlgo(base.RLAlgorithm):
         Returns:
             [type]: [description]
         """
-        total_reward = np.sum(scene_tracker.rewards)
-        total_return = np.sum(scene_tracker.discounted_rewards)
-        episode_tracker.rewards.append(total_reward)
-        episode_tracker.returns.append(total_return)
+        total_scene_reward = np.sum(scene_tracker.scene_rewards)
+        total_scene_disc_reward = np.sum(scene_tracker.scene_disc_rewards)
+        episode_tracker.episode_rewards.append(total_scene_reward)
+        episode_tracker.episode_disc_rewards.append(total_scene_disc_reward)
         episode_tracker.trajectories.append(
             scene_tracker.env_char_renders)
         episode_tracker.distributions.append(

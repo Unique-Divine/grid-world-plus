@@ -12,9 +12,6 @@ Classes:
         by an agent. 
     ObservationSeq: TODO -> docs, dev
     EnvStep: A step in the environment  
-    Agent: Pairs with an instance of 'Env' to describe an agent's 'Observation'.
-        An agent is not a property of an environment, so it may make more sense 
-        to move sight_distance to be a property of the 'Observation' instance.
     Point: A 1D np.ndarray of size 2 that contains the row and column
         indices for a point in the environment 
     PathMaker: Helper class that guarantees the environment is solvable.
@@ -34,7 +31,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from typing import List, Union, Generator, Optional
+from typing import List, Union, Generator, Optional, Dict
 from torch import Tensor
 Array = np.ndarray
 import warnings; warnings.filterwarnings("ignore")
@@ -64,38 +61,6 @@ class Point(np.ndarray):
             raise ValueError(f"args: {args}, type(args[0]): {type(args[0])}")
         return self
 
-class Agent:
-    """Pairs with an instance of 'Env' to describe an agent's 'Observation'.
-    An agent is not a property of an environment, so it may make more sense to
-    move sight_distance to be a property of the 'Observation' instance instead.
-
-    Args:
-        sight_distance (int, optional): How far in each direction the agent can 
-            see in the environmet. Defaults to 4.
-
-    Attributes:
-        sight_distance (int)
-    """
-
-    def __init__(self, sight_distance: int = 4) -> None:
-        self._sight_distance: int = sight_distance 
-        self.policy = None # TODO
-        pass # TODO
-
-    @property
-    def sight_distance(self) -> int:
-        return self._sight_distance
-
-    @sight_distance.setter
-    def sight_distance(self, value: int):
-        if isinstance(value, int):
-            self._sight_distance = value
-        else:
-            raise TypeError("'sight_distance' must be an integer.")
-    
-    # def __repr__(self):
-        # return self.__class__.__name__
-
 class Observation(torch.Tensor):
     """An observation of the environment, i.e. what is observed by an agent.
 
@@ -107,7 +72,6 @@ class Observation(torch.Tensor):
     information about the environment is hidden from a state.
     
     Args:
-        agent (rlm.Agent): The agent that's making the observation of the env.
         env (Optional[rlm.Env]): An environment with an agent in it. The 
             environment contains all information needed to get states for 
             reinforcement learning. 
@@ -115,18 +79,20 @@ class Observation(torch.Tensor):
             env state.
         env_char_grid (Optional[np.ndarray]): 
         dtype (torch.dtype): The data type for the observation.
+        sight_distance (int): How far in each direction the agent can 
+            see in the environment. This affects the size of the observation.
+            Defaults to 4.
 
     Attributes:
         center_abs (Point): The agent's position in the 'env.grid'.
         center (Point): The agent's position in the current sight window.
-        agent (rlm.Agent)
     """
     def __new__(cls, 
-                agent: 'rlm.Agent',
                 env: Optional['rlm.Env'] = None, 
                 env_grid: Optional[np.ndarray] = None, 
                 env_char_grid: Optional[np.ndarray] = None,
                 dtype: torch.dtype = torch.float,
+                sight_distance: Optional[int] = None,
                 ) -> torch.Tensor:
         env_state_given: bool = ((env is not None) 
                            or (env_grid is not None) 
@@ -145,15 +111,30 @@ class Observation(torch.Tensor):
                 grid_shape=env_char_grid.shape).position_space
             env_grid = Env.render_as_grid(char_grid = env_char_grid)
         else:
-            assert env is not None, ("If 'env_grid' and 'env_char_grid' aren't "
-                                     + "given, 'env' must be given.")
+            assert env is not None, ("If 'env_grid' and 'env_char_grid' aren't"
+                                     + " given, 'env' must be given.")
             env_position_space = env.position_space
             env_grid = env.grid
 
         assert env.grid is not None
         assert env_position_space is not None
 
-        center: Point = Point([agent.sight_distance] * 2)
+        # Specify 'sight_distance'
+        if env is None:
+            if (sight_distance is None):
+                raise ValueError()
+            else:
+                sight_distance = sight_distance
+        if env is not None:
+            if (sight_distance is None):
+                sight_distance = env.sight_distance
+            else:
+                if not env.sight_distance == sight_distance:
+                    raise ValueError(
+                        "You cant't give a value for 'sight_distance' if an "
+                        + "'env' instance is given.")
+
+        center: Point = Point([sight_distance] * 2)
         is_agent: np.ndarray = (env_grid == env_interactables['agent'])
 
         env_agent_indices: np.ndarray = np.argwhere(is_agent)
@@ -164,9 +145,9 @@ class Observation(torch.Tensor):
         center_abs: Point = env_agent_position
 
         def observe() -> Tensor:
-            sd: int = agent.sight_distance
+            sd: int = sight_distance
             observation = np.empty(
-                shape= [agent.sight_distance * 2 + 1] * 2, 
+                shape= [sight_distance * 2 + 1] * 2, 
                 dtype = np.int16)
             row_view: range = range(center_abs[0] - sd, center_abs[0] + sd + 1)
             col_view: range = range(center_abs[1] - sd, center_abs[1] + sd + 1)
@@ -190,7 +171,6 @@ class Observation(torch.Tensor):
         obs: Tensor = observe()
         setattr(obs, "center", center)
         setattr(obs, "center_abs", center_abs)
-        setattr(obs, "agent", agent)
 
         def as_color_img(obs: Tensor, env = env):
             pass # TODO 
@@ -274,6 +254,8 @@ class Env:
             goal, or blocked. Defaults to 0.2. 
         n_goals (int, optional): Number of goals in the environment. Reaching a goal gives
             a positive reward signal. Defaults to 2.
+        sight_distance (int, optional): How far in each direction the agent can 
+            see in the environmet. Defaults to 4.
     
     Attributes:
         interactables (dict): key-value pairs for the various items that can 
@@ -281,30 +263,37 @@ class Env:
             holes, etc. The 'blocked' key refers to spaces that can't 
             be traversed.
         grid (np.ndarray): A matrix with the encodings for each interactable. 
+        sight_distance (int): How far in each direction the agent can 
+            see in the environment. This affects the size of the observation.
+            Defaults to 4.
 
     Examples:
 
     >>> import rl_memory as rlm
     >>> env = rlm.Env() # initializes an environment
     >>> env.reset() # creates or resets the environment
-    >>> james_bond = rlm.Agent(sight_distance = 4)
 
     ```python
     # An episode could then look like:
     replay_buffer: list = []
     done = False
     while done!= True:  
-        obs = rlm.Observation(env=env, agent=james_bond) 
+        obs = rlm.Observation(env = env) 
         random_action: int = random.randrange(8)
         step: rlm.EnvStep = env.step(action_idx = random_action, obs = obs)
         observation, reward, done, info = step.values
     replay_buffer.append( ... )
     ```
     """
-    interactables = {'frozen': 0, 'hole': 1, 'goal': 2, 
-                              'agent': 7, 'blocked': 3}
 
-    def __init__(self, grid_shape = (10, 10), hole_pct = 0.2, n_goals = 2):
+    interactables: Dict[str, int] = {
+        'frozen': 0, 'hole': 1, 'goal': 2, 'agent': 7, 'blocked': 3}
+
+    def __init__(self,
+                 grid_shape = (10, 10), 
+                 hole_pct: float = 0.2, 
+                 n_goals: int = 2, 
+                 sight_distance: int = 4):
         # Set board dimensions and initalize to an "empty" grid. 
         if len(grid_shape) != 2:
             raise ValueError("'grid_shape' must be a list-like of length 2.")
@@ -313,6 +302,7 @@ class Env:
                             dtype = np.int32)
         self.grid = copy.deepcopy(self.empty_grid)
         assert self.grid.shape == grid_shape
+        self.sight_distance = sight_distance
 
         # Initialize grid helper parameters  
         self._position_space: List[list] = self.position_space
@@ -605,7 +595,7 @@ class Env:
             raise ValueError(f"interactable: '{interactable}' is not in "
                 +f"interactables: {self.interactables}")
         
-        next_observation = Observation(env = self, agent = obs.agent)
+        next_observation = Observation(env = self) 
         info = ""
         return EnvStep(
             next_obs = next_observation, reward = reward, done = done, 

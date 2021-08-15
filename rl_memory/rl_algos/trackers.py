@@ -20,7 +20,7 @@ class EpisodeTracker(abc.ABC):
     """
 
     episode_rewards: List[float] 
-    episode_returns: List[float] 
+    episode_disc_rewards: List[float] 
     
     def __post_init__(self):
         self._has_required_attributes()

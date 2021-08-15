@@ -24,7 +24,6 @@ warnings.filterwarnings("ignore")
 
 from rl_memory.rlm_env import environment
 Env = environment.Env
-Agent = environment.Agent
 EnvStep = environment.EnvStep
 Observation = environment.Observation
 ObservationSeq = environment.ObservationSeq

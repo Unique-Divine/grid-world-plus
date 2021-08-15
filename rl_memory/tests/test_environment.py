@@ -18,7 +18,6 @@ from typing import List, Tuple
 from torch import Tensor
 Array = np.ndarray
 Env = rlm_env.Env
-Agent = rlm_env.Agent
 PathMaker = rl_memory.rlm_env.environment.PathMaker
 
 def init_env() -> Tuple[Env, PathMaker]:
@@ -132,7 +131,7 @@ class TestStateObservation:
     def test_obs_init(self):
         env, pm = init_env()
         env.reset()
-        obs = rlm_env.Observation(env = env, agent = Agent(3))
+        obs = rlm_env.Observation(env = env)
         assert isinstance(obs, torch.Tensor)
         # TODO 
 
@@ -175,7 +174,6 @@ class TestEnvIntegration:
 
         # Initialize an environment where it's impossible to lose. 
         env = rlm_env.Env(grid_shape=(3,3), n_goals=8, hole_pct = 0.0)
-        james_bond = Agent(4)
         env.create_new()
         auto_win_grid = np.full(shape = env.grid.shape, 
                                 fill_value = env.interactables['goal'],
@@ -195,7 +193,7 @@ class TestEnvIntegration:
 
             for _ in range(MAX_NUM_SCENES):
                 # Start scene
-                obs = rlm_env.Observation(env=env, agent=james_bond)
+                obs = rlm_env.Observation(env=env)
                 step = env.step(action_idx = random.randrange(8), 
                                 obs = obs)
                 observation, reward, done, info = step.values
@@ -214,13 +212,12 @@ class TestEnvIntegration:
     def test_step(self):
         env: rlm_env.Env = init_env()[0]
         env.reset()
-        james_bond = Agent(4)
 
         done = False
         steps = []
         # while done != True:
         for _ in range(50):
-            obs = rlm_env.Observation(env=env, agent=james_bond)
+            obs = rlm_env.Observation(env=env)
             step = env.step(
                 action_idx = random.randrange(len(env.action_space)),
                 obs = obs)
