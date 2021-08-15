@@ -229,12 +229,12 @@ class VPGAlgo(base.RLAlgorithm):
     """
 
     def __init__(
-            self, 
-            policy_nn: VPGPolicyNN, 
-            env_like: rlm.Env, 
-            transfer_mgmt: Optional[base.TransferLearningManagement] = None,
-            discount_factor: float = 0.99
-            ):
+        self, 
+        policy_nn: VPGPolicyNN, 
+        env_like: rlm.Env, 
+        transfer_mgmt: Optional[base.TransferLearningManagement] = None,
+        discount_factor: float = 0.99
+        ):
             
         self.policy_nn = policy_nn
         self.env_like = env_like
@@ -361,7 +361,8 @@ class VPGAlgo(base.RLAlgorithm):
         total_scene_reward = np.sum(self.scene_tracker.scene_rewards)
         total_scene_disc_reward = np.sum(self.scene_tracker.scene_disc_rewards)
         self.episode_tracker.episode_rewards.append(total_scene_reward)
-        self.episode_tracker.episode_disc_rewards.append(total_scene_disc_reward)
+        self.episode_tracker.episode_disc_rewards.append(
+            total_scene_disc_reward)
         self.episode_tracker.trajectories.append(
             self.scene_tracker.env_char_renders)
         self.episode_tracker.distributions.append(

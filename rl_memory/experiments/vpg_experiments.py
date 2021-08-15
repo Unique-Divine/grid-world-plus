@@ -187,8 +187,7 @@ class UnnamedExperiment:
             test
         """
 
-        grid_shape: Tuple[int] = env.grid.shape
-        max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
+        max_num_scenes: int = env.grid.shape[0] * env.grid.shape[1]
 
         # Specify parameters
         obs_size: torch.Size = obs.observation.size
@@ -197,24 +196,23 @@ class UnnamedExperiment:
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
-        episode_tracker_train = vpg.VPGEpisodeTracker()
         transfer_mgmt_train = vpg.VPGTransferLearning(
             transfer_freq = transfer_freq)
 
         # Run RL algorithm
-        training_algo = vpg.VPGAlgo(
-            policy_nn = policy_nn, 
-            env_like = env, 
-            transfer_mgmt = transfer_mgmt_train, 
-            discount_factor = discount_factor)
-        training_algo.run_algo(
-            num_episodes = num_episodes, max_num_scenes = max_num_scenes)
+        training_algo = vpg.VPGAlgo(policy_nn = policy_nn, 
+                                    env_like = env, 
+                                    transfer_mgmt = transfer_mgmt_train, 
+                                    discount_factor = discount_factor)
+        training_algo.run_algo(num_episodes = num_episodes, 
+                               max_num_scenes = max_num_scenes,
+                               training = True)
 
-        return policy_nn, episode_tracker_train
+        return policy_nn, training_algo.episode_tracker
 
     def test(self, 
              env: rlm.Env, 
-             policy: nn.Module, 
+             policy_nn: vpg.VPGPolicyNN, 
              num_episodes: int = 10):
         """[summary]
         TODO: 
@@ -223,14 +221,14 @@ class UnnamedExperiment:
 
         Args:
             env (rlm.Env): [description]
-            policy (nn.Module): [description]
+            policy_nn (nn.Module): [description]
             num_episodes (int, optional): [description]. Defaults to 10.
 
         Returns:
             [type]: [description]
         """
 
-        max_num_scenes = env.grid_shape[0] * env.grid_shape[1]
+        max_num_scenes: int = env.grid.shape[0] * env.grid.shape[1]
         env.create_new()
 
         episode_trajectories = []
@@ -246,7 +244,7 @@ class UnnamedExperiment:
             while not done:
                 episode_envs.append(env.render_as_char(env.grid))
                 obs = rlm_env.Observation(env)
-                action_distribution = policy.action_distribution(
+                action_distribution = policy_nn.action_distribution(
                     obs.flatten())
                 a = action_distribution.sample()
 
@@ -290,7 +288,7 @@ class UnnamedExperiment:
             grid_shape=env.grid_shape, n_goals=env.n_goals, hole_pct=env.hole_pct)
         test_episode_rewards, episode_trajectories['test'] = self.test(
             env = test_env, 
-            policy = policy_nn, 
+            policy_nn = policy_nn, 
             num_episodes = 10)
         rlm.tools.plot_episode_rewards(
             values = episode_rewards[dataset], 
