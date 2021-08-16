@@ -9,8 +9,7 @@ except:
     import rl_memory
 import rl_memory as rlm
 import rl_memory.tools
-from rl_memory.custom_env import environment
-from rl_memory.custom_env import agents
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 
 from typing import Optional, Tuple, Dict, List
@@ -20,7 +19,6 @@ class PretrainingExperiment:
     
     Args:
         env (Env): 
-        agent (rlm.Agent): 
         episode_tracker (vpg.VPGEpisodeTracker):
         num_episodes (int): Number of episodes to evaluate the agent. Defaults 
             to 10000.
@@ -32,7 +30,6 @@ class PretrainingExperiment:
             Denoted α (alpha) in the RL literature. Defaults to 1e-3.
     
     Attributes:
-        agent (rlm.Agent): 
         episode_tracker (vpg.VPGEpisodeTracker):
         num_episodes (int): Number of episodes to evaluate the agent. Defaults 
             to 10000.
@@ -43,16 +40,15 @@ class PretrainingExperiment:
         lr (float): Policy network learning rate. 
             Denoted α (alpha) in the RL literature. Defaults to 1e-3.
     """
-    def __init__(self, 
-                 env: rlm.Env, 
-                 agent: rlm.Agent, 
-                 episode_tracker: vpg.VPGEpisodeTracker, 
-                 num_episodes: int = 10000, 
-                 discount_factor: float = 0.99, 
-                 transfer_freq: int = 10, 
-                 lr: float = 1e-3):
+    def __init__(
+        self, 
+        env: rlm.Env, 
+        episode_tracker: vpg.VPGEpisodeTracker = vpg.VPGEpisodeTracker(), 
+        num_episodes: int = 10000, 
+        discount_factor: float = 0.99, 
+        transfer_freq: int = 10, 
+        lr: float = 1e-3):
 
-        self.agent = agent
         self.episode_tracker = episode_tracker
 
         # Environment parameters
@@ -73,7 +69,7 @@ class PretrainingExperiment:
             obs: rlm.Observation) -> vpg.VPGPolicyNN:
         action_dim: int = len(env.action_space)
         obs_size: torch.Size = obs.size()
-        nn_hparams = vpg.NetworkHyperParameters(lr = self.lr)
+        nn_hparams = vpg.NNHyperParameters(lr = self.lr)
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
@@ -99,8 +95,7 @@ class PretrainingExperiment:
         easy_env = self.easy_env()
         rl_algo = vpg.VPGAlgo(
             policy_nn = policy_nn,
-            env_like = easy_env,
-            agent = self.agent, )
+            env_like = easy_env,)
         rl_algo.run_algo(
             num_episodes = self.num_episodes, 
             max_num_scenes = self.max_num_scenes)
@@ -152,7 +147,7 @@ class PretrainingExperiment:
 
         # Step 0: Initialize new env and policy network
         self.env.create_new()
-        obs: rlm.Observation = environment.Observation(self.env, self.agent)
+        obs: rlm.Observation = environment.Observation(env = self.env)
         if not policy_nn:
             policy_nn: vpg.VPGPolicyNN = self.create_policy_nn(
                 env = self.env, obs = obs)
@@ -164,67 +159,59 @@ class PretrainingExperiment:
         # Step 2: Transfer learn on the big environment.
         rl_algo = vpg.VPGAlgo(
             policy_nn = policy_nn, 
-            env = self.env,
-            agent = self.Agent)
+            env = self.env,)
         rl_algo.run_algo(
             num_episodes = self.num_episodes,
             max_num_scenes = self.max_num_scenes)
         return policy_nn
 
-# ----------------------------------------------------------------------
-#               Begin Experiment
-# ----------------------------------------------------------------------
-class UnnamedExperiment:
+class VPGEvalExperiment:
     """
     TODO: 
         docs
         test
     """
 
-    def train(env: rlm.Env, 
-            obs: rlm.Observation,
-            agent: rlm.Agent, 
-            num_episodes = 20, 
-            discount_factor: float = .99, 
-            lr = 1e-3,  
-            transfer_freq = 5):
+    def train(
+        self,
+        env: rlm.Env, 
+        num_episodes = 20, 
+        discount_factor: float = .99, 
+        lr: int = 1e-3,  
+        transfer_freq: int = 5):
         """
         TODO: 
             docs
             test
         """
 
-        grid_shape: Tuple[int] = env.grid.shape
-        max_num_scenes = 3 * grid_shape[0] * grid_shape[1]
-
         # Specify parameters
-        obs_size: torch.Size = obs.observation.size
+        max_num_scenes: int = env.grid.shape[0] * env.grid.shape[1]
+        obs: rlm.Observation = environment.Observation(env = env)
+        obs_size: torch.Size = obs.size()
         action_dim: int = len(env.action_space)
-        nn_hparams = vpg.NetworkHyperParameters(lr = lr)
+        nn_hparams = vpg.NNHyperParameters(lr = lr)
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
-        episode_tracker_train = vpg.VPGEpisodeTracker()
-        transfer_mgmt_train = vpg.VPGTransferLearning(transfer_freq = transfer_freq)
+        transfer_mgmt_train = vpg.VPGTransferLearning(
+            transfer_freq = transfer_freq)
 
         # Run RL algorithm
-        training_algo = vpg.VPGAlgo(
-            policy_nn = policy_nn, 
-            env_like = env, 
-            agent = agent, 
-            episode_tracker = episode_tracker_train, 
-            transfer_mgmt = transfer_mgmt_train, 
-            discount_factor = discount_factor)
-        training_algo.run_algo(
-            num_episodes = num_episodes, max_num_scenes = max_num_scenes)
+        training_algo = vpg.VPGAlgo(policy_nn = policy_nn, 
+                                    env_like = env, 
+                                    transfer_mgmt = transfer_mgmt_train, 
+                                    discount_factor = discount_factor)
+        training_algo.run_algo(num_episodes = num_episodes, 
+                               max_num_scenes = max_num_scenes,
+                               training = True)
 
-        return policy_nn, episode_tracker_train
+        return training_algo
 
     def test(self, 
+             rl_algo: vpg.VPGAlgo, 
              env: rlm.Env, 
-             agent: rlm.Agent, 
-             policy: nn.Module, 
-             num_episodes: int = 10):
+             num_episodes: int = 10) -> vpg.VPGAlgo:
         """[summary]
         TODO: 
             docs
@@ -232,79 +219,54 @@ class UnnamedExperiment:
 
         Args:
             env (rlm.Env): [description]
-            agent (rlm.Agent): [description]
-            policy (nn.Module): [description]
+            policy_nn (nn.Module): [description]
             num_episodes (int, optional): [description]. Defaults to 10.
 
         Returns:
-            [type]: [description]
+            rl_algo (vpg.VPGAlgo): [description]
         """
 
-        max_num_scenes = env.grid_shape[0] * env.grid_shape[1]
-        env.create_new()
+        max_num_scenes: int = env.grid.shape[0] * env.grid.shape[1]
 
-        episode_trajectories = []
-        episode_rewards = []
+        rl_algo.run_algo(
+            num_episodes = num_episodes, 
+            max_num_scenes = max_num_scenes,
+            training = False)
+        return rl_algo
 
-        for episode_idx in range(num_episodes):
-
-            episode_envs = []
-            reward_sum = 0
-            scene_number = 0
-            done: bool = False
-
-            while not done:
-                episode_envs.append(env.render_as_char(env.grid))
-                state = environment.State(env, agent)
-                action_distribution = policy.action_distribution(
-                    state.observation.flatten())
-                a = action_distribution.sample()
-
-                new_state, r, done, info = env.step(action_idx=a, state=state)
-                reward_sum += r
-
-                scene_number += 1
-                if scene_number > max_num_scenes:
-                    break
-
-            episode_trajectories.append(episode_envs)
-            episode_rewards.append(reward_sum)
-
-        return episode_rewards, episode_trajectories
-
-    def main(self):
+    def main(self, n_episodes_train: int = 2000, n_episodes_test: int = 100):
+        """Trains, test, and then plots the results.
+        
+        Args:
+            n_episodes_train (int): Number of training episodes
+            n_episodes_test (int): Number of testing episode
+        """
 
         # initialize agent and an environment with no holes
-        james_bond: rlm.Agent = agents.Agent(4)
-        env: rlm.Env = environment.Env(
-            grid_shape = (10, 10), 
-            n_goals = 1, 
-            hole_pct = 0.4)
-        env.create_new()
-        obs: rlm.Observation = environment.Observation(env=env, agent=james_bond)
+        train_env: environment.Env = environment.Env(
+            grid_shape = (10, 10), n_goals = 1, hole_pct = 0.4)
+        train_env.create_new()
 
-        episode_trajectories: Dict[List] = {}
-        episode_rewards: Dict[List[float]] = {}
+        train_algo: vpg.VPGAlgo = self.train(
+            env = train_env, num_episodes = n_episodes_train)
+        self.plot_results(rl_algo = train_algo, dataset = "train")
 
-        dataset = "train"
-        policy_nn, episode_tracker = self.train(
-            env=env, obs=obs, agent=james_bond, num_episodes = 20)
-        episode_trajectories[dataset] = episode_tracker.trajectories
-        episode_rewards[dataset] =  episode_tracker.rewards
-        rlm.tools.plot_episode_rewards(
-            values = episode_rewards[dataset], 
-            title = f"{dataset} rewards", 
-            reset_frequency = 5)
-
-        dataset = "test"
         test_env = environment.Env(
-            grid_shape=env.grid_shape, n_goals=env.n_goals, hole_pct=env.hole_pct)
-        test_episode_rewards, episode_trajectories['test'] = self.test(
+            grid_shape = train_env.grid.shape, 
+            n_goals = train_env.n_goals, 
+            hole_pct = train_env.hole_pct)
+        test_algo: vpg.VPGAlgo = self.test(
+            rl_algo = train_algo,
             env = test_env, 
-            agent = james_bond, 
-            policy = policy_nn, 
-            num_episodes = 10)
-        rlm.tools.plot_episode_rewards(
-            values = episode_rewards[dataset], 
-            title = f"{dataset} rewards", 
-            reset_frequency = 5)
+            num_episodes = n_episodes_test)
+        self.plot_results(rl_algo = test_algo, dataset = "test")
+    
+    def plot_results(self, rl_algo: vpg.VPGAlgo, dataset: str = "train"):
+        """Plots rewards"""
+        assert dataset in ["train", "test"]
+        episode_trajectories = rl_algo.episode_tracker.trajectories
+        episode_rewards =  rl_algo.episode_tracker.episode_rewards
+        rl_memory.tools.plot_episode_rewards(
+            episode_rewards = episode_rewards, 
+            title = f"{dataset} rewards")
+

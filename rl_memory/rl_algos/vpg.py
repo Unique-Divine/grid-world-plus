@@ -14,16 +14,13 @@ except:
 import rl_memory as rlm
 import rl_memory.memory
 import rl_memory.tools
-from rl_memory.custom_env import representations 
-from rl_memory.custom_env import agents 
-from rl_memory.custom_env import environment
+from rl_memory.rlm_env import representations 
+from rl_memory.rlm_env import environment 
 from rl_memory.rl_algos import base
 from rl_memory.rl_algos import trackers
 
 # Type imports
 from typing import Dict, List, Iterable, Tuple, Optional, Union
-Env = rlm.Env
-EnvStep = environment.EnvStep
 from torch import Tensor
 Array = np.ndarray
 Categorical = distributions.Categorical
@@ -149,42 +146,46 @@ class VPGPolicyNN(nn.Module):
         loss.backward()
         self.optimizer.step()
 
-@dataclasses.dataclass
 class VPGSceneTracker(trackers.SceneTracker):
     """Container class for tracking scene-level results.
 
     Attributes:
-        rewards (List[float]): Scene rewards. Defaults to empty list.
-        discounted_rewards (Array): Scene discounted rewards. Defaults to None.
+        scene_rewards (List[float]): Scene rewards. Defaults to empty list.
+        scene_disc_rewards (Array): Scene discounted rewards. Defaults to None.
         log_probs (List[float]): Scene log probabilities for the action chosen 
             by the agent. Defaults to empty list.
         env_char_renders (List[Array]): Character renders of the env grid. 
             Used for visualizing how the agent moves.
     """
-    rewards: List[float] = dataclasses.field(default_factory = list)
-    discounted_rewards: Optional[Array] = None
-    log_probs: List[float] = dataclasses.field(default_factory = list)
-    env_char_renders: List[Array] = dataclasses.field(default_factory = list)
 
-@dataclasses.dataclass
+    def __init__(self):
+        self.scene_rewards: List[float] = []
+        self.scene_disc_rewards: Array = None
+        self.log_probs: List[float] = []
+        self.env_char_renders: List[Array] = [] 
+        super().__post_init__()
+
 class VPGEpisodeTracker(trackers.EpisodeTracker):
     """Container class for tracking episode-level results.
 
     Attributes:
-        rewards (List[float]): List of total rewards for each episode. Each 
-            element of 'rewards' is the total reward for a particular episode.
-        returns (List[float]): List of total returns for each episode. Each 
-            element of 'returns' is the total discounted reward for a particular 
-            episode. Returns refers to the discounted reward. Thus, return is 
-            equivalent to reward if the episode has length one. 
+        episode_rewards (List[float]): List of total rewards for each episode. 
+            Each element of 'episode_rewards' is the total reward for a 
+            particular episode.
+        episode_disc_rewards (List[float]): List of episode total returns. Each 
+            element of 'episode_disc_rewards' is the total discounted reward 
+            for a particular episode. Note, "returns" is another term that 
+            refers to the discounted reward. 
         trajectories (List[]):
         distributions (List[Categorical]): 
     """
-    rewards: List[float] = dataclasses.field(default_factory = list)
-    returns: List[float] = dataclasses.field(default_factory = list)
-    trajectories: List = dataclasses.field(default_factory = list)
-    distributions: List[Categorical] = dataclasses.field(default_factory = list)
-        # [torch.exp(dist.log_prob(i)) for i in dist.enumerate_support()]
+    
+    def __init__(self):
+        self.episode_rewards: List[float] = []
+        self.episode_disc_rewards: List[float] = []
+        self.trajectories: List = []
+        self.distributions: List[Categorical] = []
+        super().__post_init__()
 
 class VPGTransferLearning(base.TransferLearningManagement):
     """Manages the transfer learning process for Vanilla Policy Gradient."""
@@ -208,32 +209,38 @@ class VPGAlgo(base.RLAlgorithm):
     """Runs the Vanilla Policy Gradient algorithm.
 
     Args:
-        policy_nn (VPGPolicyNN): [description]
-        env (rlm.Env): [description]
-        agent (rlm.Agent): [description]
+        policy_nn (VPGPolicyNN): 
+        env_like (rlm.Env): 
+        transfer_mgmt (Optional[base.TransferLearningManagement]): 
+            Defaults to None.
+        discount_factor: float = 0.99
     
     Attributes:
         episode_tracker (trackers.EpisodeTracker): 
-        env (rlm.Env): [description]
-        agent (rlm.Agent): [description]
+        scene_tracker (trackers.SceneTracker):
+
+        policy_nn (VPGPolicyNN): 
+        env_like (rlm.Env): 
+        transfer_mgmt (Optional[base.TransferLearningManagement]): 
+            Defaults to None.
+        discount_factor: float = 0.99
     """
 
     def __init__(
-            self, 
-            policy_nn: VPGPolicyNN, 
-            env_like: rlm.Env, 
-            agent: rlm.Agent, 
-            transfer_mgmt: Optional[base.TransferLearningManagement] = None,
-            discount_factor: float = 0.99
-            ):
+        self, 
+        policy_nn: VPGPolicyNN, 
+        env_like: rlm.Env, 
+        transfer_mgmt: Optional[base.TransferLearningManagement] = None,
+        discount_factor: float = 0.99
+        ):
             
         self.policy_nn = policy_nn
         self.env_like = env_like
-        self.agent = agent
         self.transfer_mgmt: base.TransferLearningManagement = transfer_mgmt
         self.discount_factor = discount_factor
 
         self.episode_tracker = VPGEpisodeTracker()
+        self.scene_tracker: VPGSceneTracker
 
     def run_algo(
             self, 
@@ -249,35 +256,27 @@ class VPGAlgo(base.RLAlgorithm):
 
         env: rlm.Env = self.env_like
         for episode_idx in range(num_episodes):
-            scene_tracker: trackers.SceneTracker   
-            env, scene_tracker = self.on_episode_start(
+            env = self.on_episode_start(
                 env = env, episode_idx = episode_idx)
             self.film_episode(env = env, 
-                              scene_tracker = scene_tracker, 
                               max_num_scenes = max_num_scenes) 
             if train_val == "train":
-                self.update_policy_nn(
-                    scene_tracker = scene_tracker)
-            self.on_episode_end(
-                episode_tracker = self.episode_tracker,
-                scene_tracker = scene_tracker)
+                self.update_policy_nn()
+            self.on_episode_end()
 
     def on_episode_start(
             self, 
             env: rlm.Env, 
-            episode_idx: int) -> Tuple[rlm.Env, trackers.SceneTracker]:
+            episode_idx: int) -> rlm.Env:
         if self.transfer_mgmt is not None:
             env = self.transfer_mgmt.transfer(
                 ep_idx = episode_idx, env = env)
         else:
             env.reset()
-        scene_tracker = VPGSceneTracker()
-        return env, scene_tracker
+        self.scene_tracker = VPGSceneTracker()
+        return env
 
-    def film_scene(
-        self,
-        env: rlm.Env, 
-        scene_tracker: VPGSceneTracker) -> bool:
+    def film_scene(self, env: rlm.Env) -> bool:
         """Runs a scene. A scene is one step of an episode.
 
         Args:
@@ -287,8 +286,7 @@ class VPGAlgo(base.RLAlgorithm):
             done (bool): Whether or not the episode is finished.
         """
         # Observe environment
-        obs: rlm.Observation = environment.Observation(
-            env = env, agent = self.agent)
+        obs: rlm.Observation = environment.Observation(env = env)
         action_distribution: Categorical = (
             self.policy_nn.action_distribution(obs))
         action_idx: int = action_distribution.sample()
@@ -298,14 +296,14 @@ class VPGAlgo(base.RLAlgorithm):
             action_idx = action_idx, obs = obs)
         next_obs, reward, done, info = env_step
         
-        scene_tracker.log_probs.append(action_distribution.log_prob(
+        self.scene_tracker.log_probs.append(action_distribution.log_prob(
             action_idx).unsqueeze(0))
-        scene_tracker.rewards.append(reward)
-        scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
+        self.scene_tracker.scene_rewards.append(reward)
+        self.scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
         return done
     
-    def on_scene_end(self, env: rlm.Env, scene_tracker: VPGSceneTracker):
-        scene_tracker.env_char_renders.append(
+    def on_scene_end(self, env: rlm.Env):
+        self.scene_tracker.env_char_renders.append(
             env.render_as_char(env.grid))
     
     @staticmethod
@@ -315,7 +313,6 @@ class VPGAlgo(base.RLAlgorithm):
     def film_episode(
             self, 
             env: rlm.Env, 
-            scene_tracker: VPGSceneTracker, 
             max_num_scenes: int):
         """Runs an episode.
 
@@ -326,53 +323,45 @@ class VPGAlgo(base.RLAlgorithm):
         scene_idx = 0
         done: bool = False
         while not done:
-            done: bool = self.film_scene(
-                env = env, 
-                scene_tracker = scene_tracker)
+            done: bool = self.film_scene(env = env)
 
             scene_idx += 1
             if done:  
-                self.on_scene_end(env = env, scene_tracker = scene_tracker)
+                self.on_scene_end(env = env)
                 break
             elif self.agent_took_too_long(
                 time = scene_idx,
                 max_time = max_num_scenes):
-                scene_tracker.rewards[-1] = -1  
+                self.scene_tracker.scene_rewards[-1] = -1  
                 done = True
             else:
                 continue
 
-    def update_policy_nn(
-            self,
-            scene_tracker: VPGSceneTracker):
+    def update_policy_nn(self):
         """Updates the weights and biases of the policy network."""
-        discounted_rewards: Array = rl_memory.tools.discount_rewards(
-            rewards = scene_tracker.rewards, 
+        scene_disc_rewards: Array = rl_memory.tools.discount_rewards(
+            rewards = self.scene_tracker.scene_rewards, 
             discount_factor = self.discount_factor)
-        scene_tracker.discounted_rewards = discounted_rewards
-        baselines = np.zeros(discounted_rewards.shape)
-        advantages = discounted_rewards - baselines
-        assert len(scene_tracker.log_probs) == len(advantages), "MISMATCH!"
-        self.policy_nn.update(scene_tracker.log_probs, advantages)
+        self.scene_tracker.scene_disc_rewards = scene_disc_rewards
+        baselines = np.zeros(scene_disc_rewards.shape)
+        advantages = scene_disc_rewards - baselines
 
-    def on_episode_end(
-            self,
-            episode_tracker: VPGEpisodeTracker,
-            scene_tracker: VPGSceneTracker):
+        self.policy_nn.update(
+            log_probs = self.scene_tracker.log_probs, 
+            advantages = advantages)
+
+    def on_episode_end(self):
         """Stores episode results and any other actions at episode end.
-
-        Args:
-            episode_tracker (VPGEpisodeTracker): [description]
-            scene_tracker (VPGSceneTracker): [description]
 
         Returns:
             [type]: [description]
         """
-        total_reward = np.sum(scene_tracker.rewards)
-        total_return = np.sum(scene_tracker.discounted_rewards)
-        episode_tracker.rewards.append(total_reward)
-        episode_tracker.returns.append(total_return)
-        episode_tracker.trajectories.append(
-            scene_tracker.env_char_renders)
-        episode_tracker.distributions.append(
-            scene_tracker.log_probs)
+        total_scene_reward = np.sum(self.scene_tracker.scene_rewards)
+        total_scene_disc_reward = np.sum(self.scene_tracker.scene_disc_rewards)
+        self.episode_tracker.episode_rewards.append(total_scene_reward)
+        self.episode_tracker.episode_disc_rewards.append(
+            total_scene_disc_reward)
+        self.episode_tracker.trajectories.append(
+            self.scene_tracker.env_char_renders)
+        self.episode_tracker.distributions.append(
+            self.scene_tracker.log_probs)

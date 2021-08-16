@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 from rl_memory.models.a2c.tools import discounted_reward
 from rl_memory.memory import Memory
-from rl_memory.custom_env.representations import ImgTransforms
+from rl_memory.rlm_env.representations import ImgTransforms
 import numpy as np
 
 from torch.nn import Conv2d, LeakyReLU, ReLU, MaxPool2d, BatchNorm2d, Linear

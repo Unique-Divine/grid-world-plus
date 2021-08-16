@@ -5,8 +5,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from rl_memory.custom_env import environment
-from rl_memory.custom_env import agents
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 from rl_memory.experiments import vpg_experiments
 import numpy as np
@@ -17,6 +16,8 @@ import warnings; warnings.filterwarnings("ignore")
 from typing import List, Tuple, Optional
 from torch import Tensor
 Array = np.ndarray
+
+import pytest
 
 class TestVPGInits:
     """Verifies that all of the abstract classes and concrete classes of 
@@ -31,18 +32,15 @@ class TestVPGInits:
         return env
     
     def default_experiment_setup(self) \
-                                -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = agents.Agent(sight_distance = 4)
+                                -> Tuple[rlm.Env, vpg.VPGPolicyNN]:
         env: rlm.Env = self.init_env()
-        obs: rlm.Observation = environment.Observation(
-            agent = james_bond, 
-            env = env)
+        obs: rlm.Observation = environment.Observation(env = env)
         obs_size = obs.size()
         network_h_params = vpg.NNHyperParameters(lr = 1e-3)
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
-        return env, james_bond, policy_nn
+        return env, policy_nn
 
     def test_placeholder(self):
         return 'yuh'
@@ -57,27 +55,25 @@ class TestVPGInits:
         assert transfer_mgmt
     
     def test_VPGAlgo(self):
-        env, agent, policy_nn = self.default_experiment_setup()
+        env, policy_nn = self.default_experiment_setup()
         rl_algo = vpg.VPGAlgo(
             policy_nn = policy_nn, 
-            env_like = env, 
-            agent = agent)
+            env_like = env,)
         rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
 
     def test_VPGAlgo_w_transfer(self):
-        env, agent, policy_nn = self.default_experiment_setup()
+        env, policy_nn = self.default_experiment_setup()
         
         transfer_freqs: List[int] = [1, 2, 3]
         for transfer_freq in transfer_freqs:
             rl_algo = vpg.VPGAlgo(
                 policy_nn = policy_nn, 
                 env_like = env, 
-                agent = agent, 
                 transfer_mgmt = vpg.VPGTransferLearning(
                     transfer_freq = transfer_freq))
             rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
 
-class TestVPGExperiment:  
+class TestPretrainingExperiment:  
     
     @staticmethod
     def init_env() -> rlm.Env:
@@ -87,50 +83,47 @@ class TestVPGExperiment:
         return env
 
     def default_experiment_setup(self) \
-                                -> Tuple[rlm.Env, rlm.Agent, vpg.VPGPolicyNN]:
-        james_bond = agents.Agent(sight_distance = 4)
+                                -> Tuple[rlm.Env, vpg.VPGPolicyNN]:
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(
-            agent = james_bond, 
             env = env)
         obs_size = obs.size()
         network_h_params = vpg.NNHyperParameters(lr = 1e-3)
         policy_nn = vpg.VPGPolicyNN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
-        return env, james_bond, policy_nn
+        return env, policy_nn
 
-    def test_init_VPGExperiment(self):
-        env, agent, policy_nn = self.default_experiment_setup()
+    def test_init_PretrainingExperiment(self):
+        env, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
-            agent = agent, 
-            episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         assert experiment
 
     def test_easy_env(self):
-        env, agent, policy_nn = self.default_experiment_setup()
+        env, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
-            agent = agent, 
-            episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         easy_env: rlm.Env = experiment.easy_env()
         assert isinstance(easy_env, environment.Env)
 
     def test_pretrain_on_easy_env(self):
-        env, agent, policy_nn = self.default_experiment_setup()
+        env, policy_nn = self.default_experiment_setup()
         experiment = vpg_experiments.PretrainingExperiment(
             env = env, 
-            agent = agent, 
-            episode_tracker = vpg.VPGEpisodeTracker(),
             num_episodes = 3, transfer_freq = 1 )
         experiment.pretrain_on_easy_env(policy_nn = policy_nn)
 
     def test_pretrain_to_threshold(self):
-        return 'yuh' # TODO
-        raise NotImplementedError
+        env, policy_nn = self.default_experiment_setup()
+        experiment = vpg_experiments.PretrainingExperiment(
+            env = env, 
+            num_episodes = 100, transfer_freq = 1 )
+        policy_nn = experiment.pretrain_to_threshold(
+            policy_nn = policy_nn)
+        return policy_nn
         
     def test_experiment_vpg_transfer(self):
         return 'yuh' # TODO
@@ -138,3 +131,25 @@ class TestVPGExperiment:
         # and with a custom one
         raise NotImplementedError
     
+class TestEvaluateVPG:
+
+    def test_train(self):
+        """Integration test on whether VPGAlgo runs for training."""
+        env = environment.Env()
+        env.reset()
+        experiment = vpg_experiments.VPGEvalExperiment()
+        experiment.train(env = env, num_episodes = 2)
+
+    def test_test(self):
+        """Integration test on whether VPGAlgo runs for validation."""
+        env = environment.Env()
+        env.reset()
+        experiment = vpg_experiments.VPGEvalExperiment()
+        train_algo: vpg.VPGAlgo = experiment.train(env = env, num_episodes = 1)
+        experiment.test(rl_algo = train_algo, env = env, num_episodes = 1)
+
+    def test_plot_results(self):
+        env = environment.Env()
+        env.reset()
+        experiment = vpg_experiments.VPGEvalExperiment()
+        experiment.main(n_episodes_train = 500, n_episodes_test = 20)

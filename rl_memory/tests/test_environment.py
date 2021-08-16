@@ -10,14 +10,15 @@ import torch
 import random
 import copy
 import warnings; warnings.filterwarnings("ignore")
-from rl_memory.custom_env import environment
-from rl_memory.custom_env.agents import Agent
+from rl_memory import rlm_env
+import rl_memory.rlm_env.environment
+
 # Type imports
 from typing import List, Tuple
 from torch import Tensor
 Array = np.ndarray
-Env = environment.Env
-PathMaker = environment.PathMaker
+Env = rlm_env.Env
+PathMaker = rl_memory.rlm_env.environment.PathMaker
 
 def init_env() -> Tuple[Env, PathMaker]:
     """Helper function for setting up a random environments for tests. 
@@ -25,14 +26,14 @@ def init_env() -> Tuple[Env, PathMaker]:
         env: An empty environment without any agents, goals, or holes. 
         pm: An instance of the Pathmaker class.  
     """
-    env: Env = environment.Env(grid_shape=(15,15), n_goals=4, 
+    env: Env = rlm_env.Env(grid_shape=(15,15), n_goals=4, 
                                   hole_pct = 0.3)
-    pm: PathMaker = environment.PathMaker(env)
+    pm: PathMaker = rl_memory.rlm_env.environment.PathMaker(env)
     return env, pm
 
 class TestEnvInit:
     def test_set_agent_goal(self):
-        env = environment.Env(grid_shape=(50, 50), n_goals=60)
+        env = rlm_env.Env(grid_shape=(50, 50), n_goals=60)
         for item_name in ['agent', 'hole', 'goal', 'blocked']:
             n_items = int((env.grid == env.interactables[item_name]).sum())
             expected_count = 0
@@ -64,7 +65,7 @@ class TestEnvInit:
             assert env_object in list(nonfrozen.values())
         
     def test_set_holes(self):
-        env = environment.Env(grid_shape=(50, 50), n_goals=20)
+        env = rlm_env.Env(grid_shape=(50, 50), n_goals=20)
 
         env.set_agent_goal()
         n_holes: int = int((env.grid == env.interactables['hole']).sum())
@@ -130,7 +131,7 @@ class TestStateObservation:
     def test_obs_init(self):
         env, pm = init_env()
         env.reset()
-        obs = environment.Observation(env = env, agent = Agent(3))
+        obs = rlm_env.Observation(env = env)
         assert isinstance(obs, torch.Tensor)
         # TODO 
 
@@ -172,8 +173,7 @@ class TestEnvIntegration:
         result in a terminal state and give reward 1. """
 
         # Initialize an environment where it's impossible to lose. 
-        env = environment.Env(grid_shape=(3,3), n_goals=8, hole_pct = 0.0)
-        james_bond = Agent(4)
+        env = rlm_env.Env(grid_shape=(3,3), n_goals=8, hole_pct = 0.0)
         env.create_new()
         auto_win_grid = np.full(shape = env.grid.shape, 
                                 fill_value = env.interactables['goal'],
@@ -193,7 +193,7 @@ class TestEnvIntegration:
 
             for _ in range(MAX_NUM_SCENES):
                 # Start scene
-                obs = environment.Observation(env=env, agent=james_bond)
+                obs = rlm_env.Observation(env=env)
                 step = env.step(action_idx = random.randrange(8), 
                                 obs = obs)
                 observation, reward, done, info = step.values
@@ -210,15 +210,14 @@ class TestEnvIntegration:
         assert np.all([r == 1 for r in ep_rewards]), ""
 
     def test_step(self):
-        env: environment.Env = init_env()[0]
+        env: rlm_env.Env = init_env()[0]
         env.reset()
-        james_bond = Agent(4)
 
         done = False
         steps = []
         # while done != True:
         for _ in range(50):
-            obs = environment.Observation(env=env, agent=james_bond)
+            obs = rlm_env.Observation(env=env)
             step = env.step(
                 action_idx = random.randrange(len(env.action_space)),
                 obs = obs)
