@@ -68,22 +68,21 @@ def epsilon(episode_idx: int,
     return epsilon
 
 
-def plot_episode_rewards(values, title, reset_frequency):
+def plot_episode_rewards(episode_rewards: List[float], title: str):
     """ Plot the reward curve and histogram of results over time.
     
     Formerly a part of rl_memory.models.a2c.tools
     """
     # Update the window after each episode
     IPython.display.clear_output(wait=True)
-    x = range(len(values))
+    x = range(len(episode_rewards))
 
     # Define the figure
-    f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12,5))
-    f.suptitle(title)
-    ax[0].plot(values, label='score per run')
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12,5))
+    fig.suptitle(title)
+    ax[0].plot(episode_rewards, label='score per run')
     ax[0].axhline(1, c='red', ls='--', label='goal')
-    ax[0].set_xlabel('Episodes')
-    ax[0].set_ylabel('Reward')
+    ax[0].set(xlabel = 'Episodes', ylabel = 'Reward')
     ax[0].legend()
 
     # xcoords = [i for i in x if i%reset_frequency==0]
@@ -92,7 +91,7 @@ def plot_episode_rewards(values, title, reset_frequency):
 
     # Calculate the trend
     try:
-        z = np.polyfit(x, values, 1)
+        z = np.polyfit(x, episode_rewards, 1)
         p = np.poly1d(z)
         ax[0].plot(x, p(x), "--", label='trend')
     except:
@@ -101,7 +100,7 @@ def plot_episode_rewards(values, title, reset_frequency):
 
 
     # Plot the histogram of results
-    ax[1].hist(values[-50:])
+    ax[1].hist(episode_rewards[-50:])
     ax[1].axvline(1, c='red', label='goal')
     ax[1].set_xlabel('Scores per Last 50 Episodes')
     ax[1].set_ylabel('Frequency')

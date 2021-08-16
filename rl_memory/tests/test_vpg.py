@@ -5,7 +5,7 @@ except:
     exec(open('__init__.py').read()) 
     import rl_memory
 import rl_memory as rlm
-from rl_memory import rlm_env
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 from rl_memory.experiments import vpg_experiments
 import numpy as np
@@ -26,7 +26,7 @@ class TestVPGInits:
 
     @staticmethod
     def init_env() -> rlm.Env:
-        env: rlm.Env = rlm_env.Env(
+        env: rlm.Env = environment.Env(
             grid_shape=(15,15), n_goals=4, hole_pct = 0.3)
         env.reset()
         return env
@@ -34,7 +34,7 @@ class TestVPGInits:
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, vpg.VPGPolicyNN]:
         env: rlm.Env = self.init_env()
-        obs: rlm.Observation = rlm_env.Observation(env = env)
+        obs: rlm.Observation = environment.Observation(env = env)
         obs_size = obs.size()
         network_h_params = vpg.NNHyperParameters(lr = 1e-3)
         policy_nn = vpg.VPGPolicyNN(
@@ -77,7 +77,7 @@ class TestPretrainingExperiment:
     
     @staticmethod
     def init_env() -> rlm.Env:
-        env: rlm.Env = rlm_env.Env(
+        env: rlm.Env = environment.Env(
             grid_shape=(15,15), n_goals=4, hole_pct = 0.3)
         env.reset()
         return env
@@ -85,7 +85,7 @@ class TestPretrainingExperiment:
     def default_experiment_setup(self) \
                                 -> Tuple[rlm.Env, vpg.VPGPolicyNN]:
         env: rlm.Env = self.init_env()
-        obs: rlm.Observation = rlm_env.Observation(
+        obs: rlm.Observation = environment.Observation(
             env = env)
         obs_size = obs.size()
         network_h_params = vpg.NNHyperParameters(lr = 1e-3)
@@ -107,7 +107,7 @@ class TestPretrainingExperiment:
             env = env, 
             num_episodes = 3, transfer_freq = 1 )
         easy_env: rlm.Env = experiment.easy_env()
-        assert isinstance(easy_env, rlm_env.Env)
+        assert isinstance(easy_env, environment.Env)
 
     def test_pretrain_on_easy_env(self):
         env, policy_nn = self.default_experiment_setup()
@@ -117,8 +117,13 @@ class TestPretrainingExperiment:
         experiment.pretrain_on_easy_env(policy_nn = policy_nn)
 
     def test_pretrain_to_threshold(self):
-        return 'yuh' # TODO
-        raise NotImplementedError
+        env, policy_nn = self.default_experiment_setup()
+        experiment = vpg_experiments.PretrainingExperiment(
+            env = env, 
+            num_episodes = 100, transfer_freq = 1 )
+        policy_nn = experiment.pretrain_to_threshold(
+            policy_nn = policy_nn)
+        return policy_nn
         
     def test_experiment_vpg_transfer(self):
         return 'yuh' # TODO
@@ -126,3 +131,25 @@ class TestPretrainingExperiment:
         # and with a custom one
         raise NotImplementedError
     
+class TestEvaluateVPG:
+
+    def test_train(self):
+        """Integration test on whether VPGAlgo runs for training."""
+        env = environment.Env()
+        env.reset()
+        experiment = vpg_experiments.VPGEvalExperiment()
+        experiment.train(env = env, num_episodes = 2)
+
+    def test_test(self):
+        """Integration test on whether VPGAlgo runs for validation."""
+        env = environment.Env()
+        env.reset()
+        experiment = vpg_experiments.VPGEvalExperiment()
+        train_algo: vpg.VPGAlgo = experiment.train(env = env, num_episodes = 1)
+        experiment.test(rl_algo = train_algo, env = env, num_episodes = 1)
+
+    def test_plot_results(self):
+        env = environment.Env()
+        env.reset()
+        experiment = vpg_experiments.VPGEvalExperiment()
+        experiment.main(n_episodes_train = 500, n_episodes_test = 20)

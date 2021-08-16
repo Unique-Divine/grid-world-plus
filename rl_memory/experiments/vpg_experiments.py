@@ -9,7 +9,7 @@ except:
     import rl_memory
 import rl_memory as rlm
 import rl_memory.tools
-from rl_memory import rlm_env
+from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 
 from typing import Optional, Tuple, Dict, List
@@ -81,7 +81,7 @@ class PretrainingExperiment:
         Returns:
             (Env): A small, 3 by 3 environment with one goal and one hole.
         """
-        easy_env: rlm.Env = rlm_env.Env(
+        easy_env: rlm.Env = environment.Env(
             grid_shape=(3, 3), n_goals=1, hole_pct=.1)
         easy_env.reset()
         return easy_env
@@ -147,7 +147,7 @@ class PretrainingExperiment:
 
         # Step 0: Initialize new env and policy network
         self.env.create_new()
-        obs: rlm.Observation = rlm_env.Observation(env = self.env)
+        obs: rlm.Observation = environment.Observation(env = self.env)
         if not policy_nn:
             policy_nn: vpg.VPGPolicyNN = self.create_policy_nn(
                 env = self.env, obs = obs)
@@ -165,22 +165,20 @@ class PretrainingExperiment:
             max_num_scenes = self.max_num_scenes)
         return policy_nn
 
-# ----------------------------------------------------------------------
-#               Begin Experiment
-# ----------------------------------------------------------------------
-class EvaluationOfVPG:
+class VPGEvalExperiment:
     """
     TODO: 
         docs
         test
     """
 
-    def train(env: rlm.Env, 
-            obs: rlm.Observation,
-            num_episodes = 20, 
-            discount_factor: float = .99, 
-            lr = 1e-3,  
-            transfer_freq = 5):
+    def train(
+        self,
+        env: rlm.Env, 
+        num_episodes = 20, 
+        discount_factor: float = .99, 
+        lr: int = 1e-3,  
+        transfer_freq: int = 5):
         """
         TODO: 
             docs
@@ -189,8 +187,8 @@ class EvaluationOfVPG:
 
         # Specify parameters
         max_num_scenes: int = env.grid.shape[0] * env.grid.shape[1]
-        obs: rlm.Observation = rlm_env.Observation(env = env)
-        obs_size: torch.Size = obs.observation.size
+        obs: rlm.Observation = environment.Observation(env = env)
+        obs_size: torch.Size = obs.size()
         action_dim: int = len(env.action_space)
         nn_hparams = vpg.NNHyperParameters(lr = lr)
         policy_nn = vpg.VPGPolicyNN(
@@ -236,38 +234,39 @@ class EvaluationOfVPG:
             training = False)
         return rl_algo
 
-    def main(self):
+    def main(self, n_episodes_train: int = 2000, n_episodes_test: int = 100):
         """Trains, test, and then plots the results.
-        TODO:
-        - docs
-        - test
+        
+        Args:
+            n_episodes_train (int): Number of training episodes
+            n_episodes_test (int): Number of testing episode
         """
 
         # initialize agent and an environment with no holes
-        train_env: rlm_env.Env = rlm_env.Env(grid_shape = (10, 10), 
-                                             n_goals = 1, hole_pct = 0.4)
+        train_env: environment.Env = environment.Env(
+            grid_shape = (10, 10), n_goals = 1, hole_pct = 0.4)
         train_env.create_new()
 
         train_algo: vpg.VPGAlgo = self.train(
-            env = train_env, num_episodes = 20)
+            env = train_env, num_episodes = n_episodes_train)
         self.plot_results(rl_algo = train_algo, dataset = "train")
 
-        test_env = rlm_env.Env(
-            grid_shape = train_env.grid_shape, 
+        test_env = environment.Env(
+            grid_shape = train_env.grid.shape, 
             n_goals = train_env.n_goals, 
             hole_pct = train_env.hole_pct)
         test_algo: vpg.VPGAlgo = self.test(
             rl_algo = train_algo,
             env = test_env, 
-            num_episodes = 10)
+            num_episodes = n_episodes_test)
         self.plot_results(rl_algo = test_algo, dataset = "test")
     
     def plot_results(self, rl_algo: vpg.VPGAlgo, dataset: str = "train"):
+        """Plots rewards"""
         assert dataset in ["train", "test"]
         episode_trajectories = rl_algo.episode_tracker.trajectories
         episode_rewards =  rl_algo.episode_tracker.episode_rewards
         rl_memory.tools.plot_episode_rewards(
-            values = episode_rewards, 
-            title = f"{dataset} rewards", 
-            reset_frequency = 5)
+            episode_rewards = episode_rewards, 
+            title = f"{dataset} rewards")
 
