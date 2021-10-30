@@ -29,6 +29,15 @@ The goal from these two steps is to be able to pass input (representations) thro
 
 ---
 
+Update: 2021-10-10 Discussion
+
+Focus on 2 main areas:
+
+1. Extend literature review with an emphasis on exploration and transfer learning
+2. Implement and try out a minimum of 2 other RL algorithms to see how effective they are without transfer learning and how much TL might help. : Rainbow DQN and [other algo]
+
+---
+
 # § Completed
 
 ## Report for Krzysztof
