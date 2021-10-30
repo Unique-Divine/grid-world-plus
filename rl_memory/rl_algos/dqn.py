@@ -117,10 +117,10 @@ class DQN(nn.Module):
             nn.LeakyReLU(),
             nn.MaxPool2d(kernel_size=filter_size, stride=1),) 
 
-    def action_distribution(self, state) -> Categorical:
+    def get_Q_values(self, obs: rlm.Observation) -> Categorical:
         """
         Args:
-            state: TODO
+            obs (Observation): grid that agent sees
 
         input: state (TODO adjust for when state is sequence of observations??)
         ouput: softmax(nn valuation of each action)
@@ -128,15 +128,16 @@ class DQN(nn.Module):
         Returns: 
             action_distribution (Categorical): 
         """
-        state_rgb: Tensor = it.grid_to_rgb(state).unsqueeze(0)
-        action_logits = self.forward(state_rgb)
-        action_probs: Tensor = F.softmax(input = action_logits, dim=-1)
-        action_distribution: Categorical = torch.distributions.Categorical(
-            probs = action_probs)
-        return action_distribution
+        obs_rgb: Tensor = it.grid_to_rgb(obs).unsqueeze(0)
+        action_logits = self.forward(obs_rgb)
+        return action_logits
 
-    def update(self, log_probs, advantages):  # add entropy
+    def update(self, memories: List[rlm.Memory], advantages):  # add entropy
         """Update with advantage policy gradient theorem."""
+        # V(obs_t) = sum_t gamma^t * r_t
+        # = sum_t gamma^0 r_0 + V(s_{t+1})
+        # loss = MSE(V(obs_t) - (gamma*V(obs_{t+1}) + gamma^0 * r)
+
         advantages = torch.FloatTensor(advantages)
         log_probs = torch.cat(tensors = log_probs, dim = 0)
         assert log_probs.requires_grad
@@ -146,6 +147,18 @@ class DQN(nn.Module):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+    # def update(self, log_probs, advantages):  # add entropy
+    #     """Update with advantage policy gradient theorem."""
+    #     advantages = torch.FloatTensor(advantages)
+    #     log_probs = torch.cat(tensors = log_probs, dim = 0)
+    #     assert log_probs.requires_grad
+    #     assert not advantages.requires_grad
+    #
+    #     loss = - torch.mean(log_probs * advantages.detach())
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
 
 class DQNSceneTracker(trackers.SceneTracker): # TODO
     """Container class for tracking scene-level results.

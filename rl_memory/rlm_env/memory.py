@@ -10,10 +10,11 @@ import rlm_env.Observation
 
 class Memory:
 
-    def __init__(self, state, action, reward):
-        self.state = state
+    def __init__(self, obs, action, reward, next_obs=None):
+        self.obs = obs
         self.action = action
         self.reward = reward
+        self.next_obs = next_obs
 
 class Trajectory:
 
