@@ -120,32 +120,73 @@ class DDQN(pl.LightningModule):
     
     https://paperswithcode.com/method/double-dqn
 
-    def action_distribution(self, state) -> Categorical:
+    Args: 
+        dqn_greedy (DQN): The target network used to estimate state values (Q-values)
+        dqn_prime (DQN): Second network, θ', that has its weights replaced by 
+            those of the target network, θ 'dqn_greegy', for the evaluation of
+            the current greedy policy.     
+    """
+
+    def __init__(self, dqn_greedy: DQN, dqn_prime: DQN):
+        self.dqn_greedy = dqn_greedy
+        self.dqn_prime = dqn_prime
+
+        self.dqn_greedy_update_idx: int = 0 
+        self.dqn_prime_update_idx: int = 0 
+
+    def train_from_buffer_sample(self):
+        # self.sample_replay_buffer()
+        targets = self.compute_targets()
+        # self.update_dqn_greedy()
+
+    def update_dqn_prime(self):
+        """'dqn_prime' is on a slower update time with a different schedule"""
+
+        self.dqn_prime_update_idx += 1
+
+    def update_dqn_greedy(self):
+        self.dqn_greedy # update my weights based on (obs, action, target) paris
+        ...
+        self.dqn_greedy_update_idx += 1
+
+    def compute_targets(self, 
+                        memories: Union[memory.Memory, List[memory.Memory]], 
+                        discount_factor: float):
+        if isinstance(memories, (memory.Memory)):
+            memories = [memories]
+        assert isinstance(memories, list)
+        assert isinstance(memories[0], memory.Memory)
+
+        non_terminal_idxs: List[bool] = [
+            (m.next_obs is not None) for m in memories]
+        targets = torch.zeros(size=(num_memories:=len(memories)))
+
+        obs_batch, action_idx_batch, reward_batch, next_obs_batch = [
+            torch.Tensor(_tuple) for _tuple in zip(*memories)]
+        
+        q_vals_next_obs = torch.ones(size=num_memories) * reward_batch
+        q_vals_next_obs[non_terminal_idxs] = self.dqn_prime.predict(
+            next_obs_batch[non_terminal_idxs], train=False)
+        
+        self.update_dqn_greedy()
+            
+        # target = torch.Tensor(m.reward) + discount_factor * torch.Tensor()
+        ... # TODO
+
+    def update(self, q_vals: List[torch.Tensor], action_idxs: List[int], 
+               target_batch: List[torch.Tensor]):  # add entropy
+        """Update NN weights with [method].
+
+            obs_batch: List[rlm.Observation], 
+            action_idxs: List[int], 
+            target_batch: torch.Tensor
         """
-        Args:
-            state: TODO
+        target_batch = torch.FloatTensor(target_batch)
+        assert not target_batch.requires_grad
+        assert all([q_vals.requires_grad for q_val in q_vals])
 
-        input: state (TODO adjust for when state is sequence of observations??)
-        ouput: softmax(nn valuation of each action)
-
-        Returns: 
-            action_distribution (Categorical): 
-        """
-        state_rgb: Tensor = it.grid_to_rgb(state).unsqueeze(0)
-        action_logits = self.forward(state_rgb)
-        action_probs: Tensor = F.softmax(input = action_logits, dim=-1)
-        action_distribution: Categorical = torch.distributions.Categorical(
-            probs = action_probs)
-        return action_distribution
-
-    def update(self, log_probs, advantages):  # add entropy
-        """Update with advantage policy gradient theorem."""
-        advantages = torch.FloatTensor(advantages)
-        log_probs = torch.cat(tensors = log_probs, dim = 0)
-        assert log_probs.requires_grad
-        assert not advantages.requires_grad
-
-        loss = - torch.mean(log_probs * advantages.detach())
+        self.train()
+        loss = self.loss_fn(q_vals, target_batch.detach())
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -291,11 +332,12 @@ class DQNAlgo(base.RLAlgorithm): # TODO Write the DQN class and change this algo
         # Observe environment
         obs: rlm.Observation = environment.Observation(env = env)
         q_vals = self.dqn(obs)
-        _, best_action_idx = torch.max(q_vals, dim=1)
+        _, action_idx = torch.max(q_vals, dim=1) 
+        # best_action, best_action_idx
         
         # Perform action
         env_step: rlm.EnvStep = env.step(
-            action_idx = best_action_idx, obs = obs)
+            action_idx = action_idx, obs = obs)
         next_obs, reward, done, info = env_step
         
         # TODO update scene tracker variables 
