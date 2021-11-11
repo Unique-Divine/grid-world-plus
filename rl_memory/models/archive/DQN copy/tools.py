@@ -16,7 +16,7 @@ def epsilon(current_episode, num_episodes):
     return .5 * .9**current_episode
 
 
-def run_target_update(Qprincipal, Qtarget):
+def update_q_prime(Qprincipal, Qtarget):
     for v, v_ in zip(Qprincipal.model.parameters(), Qtarget.model.parameters()):
         v_.data.copy_(v.data)
 
