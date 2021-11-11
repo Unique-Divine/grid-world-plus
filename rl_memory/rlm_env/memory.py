@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-from typing import List
-try:
-    import rl_memory
-except:
-    exec(open('__init__.py').read()) 
-    import rl_memory
 from rl_memory import rlm_env
-import rlm_env.Observation
+from typing import List, NamedTuple, Optional
 
-class Memory:
+class Memory(NamedTuple):
+    """NamedTuple representing a memory, or experience.
+    
+    Args and Attributes:
+        obs (rlm_env.Observation)
+        action_idx (int)
+        reward (float)
+        next_obs (Optional[rlm_env.Observation]): Defaults to None.
+    """
+    obs: rlm_env.Observation
+    action_idx: int
+    reward: float
+    next_obs: Optional[rlm_env.Observation]
 
-    def __init__(self, state, action, reward):
-        self.state = state
-        self.action = action
-        self.reward = reward
 
 class Trajectory:
 
