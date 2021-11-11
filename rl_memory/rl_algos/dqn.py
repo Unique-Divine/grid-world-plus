@@ -6,21 +6,14 @@ import torch.optim
 import numpy as np
 import dataclasses
 import os, sys 
-try:
-    import rl_memory
-except:
-    exec(open('__init__.py').read()) 
-    import rl_memory
 import rl_memory as rlm
-import rl_memory.memory
 import rl_memory.tools
-from rl_memory.rlm_env import representations 
-from rl_memory.rlm_env import environment 
-from rl_memory.rl_algos import base
-from rl_memory.rl_algos import trackers
+from rl_memory.rlm_env import environment, representations, memory
+from rl_memory.rl_algos import base, trackers
+import pytorch_lightning as pl
 
 # Type imports
-from typing import Dict, List, Iterable, Tuple, Optional, Union
+from typing import Dict, List, Iterable, Sequence, Tuple, Optional, Union
 from torch import Tensor
 Array = np.ndarray
 Categorical = distributions.Categorical
@@ -69,9 +62,8 @@ class NNHyperParameters:
         assert (dropout_pct >= 0) and (dropout_pct <= 1), (
             f"'dropout_pct' must be between 0 and 1, not {dropout_pct}")
 
-# TODO
 class DQN(nn.Module):
-    """Neural network for vanilla policy gradient. Used in the first experiment
+    """A single Deep Q-network
     
     Args:
         action_dim (int): The dimension of the action space, i.e. 
@@ -101,7 +93,7 @@ class DQN(nn.Module):
         self.optimizer = torch.optim.Adam(self.parameters(), lr = h_params.lr)
         self.action_dim = action_dim
 
-        self.memory = rl_memory.memory.Memory()
+        self.loss_fn = nn.MSELoss()
 
     def forward(self, x: Tensor):
         x: Tensor = x.float()
@@ -116,6 +108,17 @@ class DQN(nn.Module):
             nn.BatchNorm2d(num_filters),
             nn.LeakyReLU(),
             nn.MaxPool2d(kernel_size=filter_size, stride=1),) 
+    
+    def predict(self, x: Tensor, train: bool):
+        self.eval()
+        if train:
+            self.train()
+        return self.forward(x)
+
+class DDQN(pl.LightningModule):
+    """Double Q-Learning 
+    
+    https://paperswithcode.com/method/double-dqn
 
     def action_distribution(self, state) -> Categorical:
         """
