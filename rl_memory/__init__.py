@@ -15,7 +15,7 @@ def access_root_dir(depth = 1):
 access_root_dir(depth = 0)
 
 import rl_memory
-from rl_memory.rlm_env import environment
+from rl_memory.rlm_env import environment, memory
 from rl_memory.rl_algos import trackers
 
 Env = environment.Env
@@ -23,3 +23,4 @@ Observation = environment.Observation
 EnvStep = environment.EnvStep
 EpisodeTracker = trackers.EpisodeTracker
 SceneTracker = trackers.SceneTracker
+Memory = memory.Memory

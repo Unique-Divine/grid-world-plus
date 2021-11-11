@@ -265,3 +265,10 @@ TSWLatexianTemp*
 # videos
 **.mp4
 
+# pycharm stuff
+.DS_Store
+.idea/*
+rl_memory/.DS_Store
+rl_memory/.idea/*
+
+

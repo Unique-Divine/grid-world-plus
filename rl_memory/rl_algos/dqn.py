@@ -191,6 +191,18 @@ class DDQN(pl.LightningModule):
         loss.backward()
         self.optimizer.step()
 
+    # def update(self, log_probs, advantages):  # add entropy
+    #     """Update with advantage policy gradient theorem."""
+    #     advantages = torch.FloatTensor(advantages)
+    #     log_probs = torch.cat(tensors = log_probs, dim = 0)
+    #     assert log_probs.requires_grad
+    #     assert not advantages.requires_grad
+    #
+    #     loss = - torch.mean(log_probs * advantages.detach())
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
+
 class DQNSceneTracker(trackers.SceneTracker): # TODO
     """Container class for tracking scene-level results.
 

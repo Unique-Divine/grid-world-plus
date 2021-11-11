@@ -1,6 +1,7 @@
 # Experiments and Mini Projects <!-- omit in toc -->
 
 #### Table of Contents <!-- omit in toc -->
+
 - [Update: 2021-10-10 Discussion](#update-2021-10-10-discussion)
 - [Completed](#completed)
   - [Report for Krzysztof](#report-for-krzysztof)
@@ -109,6 +110,3 @@ Context vector from sequence predictions of the Transformer can say which states
 
 References:
 - Zhang, C., Kjellstrom, H., & Mandt, S. (2017). Determinantal point processes for mini-batch diversification." *arXiv preprint arXiv:1705.00607.* [[pdf]](https://arxiv.org/pdf/1705.00607.pdf)
-
-
-
