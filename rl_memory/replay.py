@@ -8,10 +8,8 @@ Classes:
     Trajectory: An ordered sequence of memories.
 """
 import dataclasses
-from rl_memory import rlm_env
 import rl_memory as rlm
 from typing import Any, Iterable, List, Optional, Tuple
-
 
 @dataclasses.dataclass
 class Memory:
@@ -40,28 +38,37 @@ Experience = Memory
 class Trajectory:
     """An ordered sequence of memories.
     
+    Args: 
+        memories (List[Memory]): Memories that make up the trajectory.
+
     Attributes:
-        states
-        actions
-        rewards
-        next_states
+        memories (List[Memory]): Memories that make up the trajectory.
+        obs_seq (List[rlm.Observation]): Observations.
+        action_idxs (List[int]): Action indices that map to actions.
+        rewards (List[float]): Reward for each memory.
+        next_obs_seq (List[Optional[rlm.Observation]]): The resultant 'next_obs'
+            after corresponding to each obs, action_idx, and reward. 
     """
 
     def __init__(self, memories: List[Memory] = [], pct_mask: float = 0.35):
         self.memories = memories
-        self.pr_mask
+        self.pct_mask = pct_mask
 
     @property
     def rewards(self) -> List[float]:
         return [memory.reward for memory in self.memories]
 
     @property
-    def actions(self) -> list:
-        return [memory.action for memory in self.memories]
+    def action_idxs(self) -> List[int]:
+        return [memory.action_idx for memory in self.memories]
 
     @property
-    def states(self) -> list: 
-        return [memory.state for memory in self.memories]
+    def obs_seq(self) -> List[rlm.Observation]: 
+        return [memory.obs for memory in self.memories]
+
+    @property
+    def next_obs_seq(self) -> List[Optional[rlm.Observation]]: 
+        return [memory.next_obs for memory in self.memories]
 
     def __len__(self) -> int:
         return len(self.memories)
