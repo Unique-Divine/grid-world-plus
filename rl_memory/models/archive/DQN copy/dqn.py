@@ -1,7 +1,7 @@
 from q_network import Q
 import numpy as np
 import gym
-from tools import epsilon, run_target_update, plot_episode_rewards, ReplayBuffer
+from tools import epsilon, update_q_prime, plot_episode_rewards, ReplayBuffer
 import torch
 
 # buffer hyperparameters
@@ -84,7 +84,7 @@ for episode in range(num_episodes):
 
         # 5)
         if Qtarget_update_counter % steps_til_target_update == 0:
-            run_target_update(QP, QT)
+            update_q_prime(QP, QT)
 
         # 6)
         Qtarget_update_counter += 1

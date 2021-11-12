@@ -1,5 +1,6 @@
 import random
 from collections import deque
+from typing import List, Tuple
 from IPython.display import clear_output
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +17,7 @@ def epsilon(current_episode, num_episodes):
     return .5 * .9**current_episode
 
 
-def run_target_update(Qprincipal, Qtarget):
+def update_q_prime(Qprincipal, Qtarget):
     for v, v_ in zip(Qprincipal.model.parameters(), Qtarget.model.parameters()):
         v_.data.copy_(v.data)
 
@@ -51,19 +52,30 @@ def plot_episode_rewards(values, title=''):
     ax[1].legend()
     plt.show()
 
+class Experience(Tuple):
+    """A tuple containing (state, action, reward, done, next_state).
+        state (Tensor)
+        action (int)
+        reward (float)
+        done (bool)
+        next_state (Tensor)
+    """
 
 class ReplayBuffer(object):
 
-    def __init__(self, maxlength):
+    def __init__(self, maxlength: int):
         """
         maxlength: max number of tuples to store in the buffer
         if there are more tuples than maxlength, pop out the oldest tuples
         """
         self.buffer = deque()
-        self.number = 0
-        self.maxlength = maxlength
+        self.number: int = 0
+        self.maxlength: int = maxlength
+    
+    def __len__(self) -> int:
+        return self.number
 
-    def append(self, experience):
+    def append(self, experience: Experience):
         """
         this function implements appending new experience tuple
         experience: a tuple of the form (s,a,r,s^\prime)
@@ -79,11 +91,12 @@ class ReplayBuffer(object):
             self.buffer.popleft()
             self.number -= 1
 
-    def sample(self, batchsize):
+    def sample(self, batchsize: int) -> List[Experience]:
+        """Samples 'batchsize' experience tuples
+        Args:
+            batchsize (int)
+        Returns:
+            (List[Experience])
         """
-        this function samples 'batchsize' experience tuples
-        batchsize: size of the minibatch to be sampled
-        return: a list of tuples of form (s,a,r,sprime)
-        """
-        minibatch = random.sample(self.buffer, batchsize)
+        minibatch: List[Experience] = random.sample(self.buffer, batchsize)
         return minibatch

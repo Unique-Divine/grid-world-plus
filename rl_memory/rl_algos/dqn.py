@@ -7,15 +7,13 @@ import numpy as np
 import dataclasses
 import os, sys 
 import rl_memory as rlm
-import rl_memory.memory
 import rl_memory.tools
-from rl_memory.rlm_env import representations 
-from rl_memory.rlm_env import environment 
-from rl_memory.rl_algos import base
-from rl_memory.rl_algos import trackers
+from rl_memory.rlm_env import environment, representations, memory
+from rl_memory.rl_algos import base, trackers
+import pytorch_lightning as pl
 
 # Type imports
-from typing import Dict, List, Iterable, Tuple, Optional, Union
+from typing import Dict, List, Iterable, Sequence, Tuple, Optional, Union
 from torch import Tensor
 Array = np.ndarray
 Categorical = distributions.Categorical
@@ -24,7 +22,7 @@ it = representations.ImgTransforms()
 
 @dataclasses.dataclass
 class NNHyperParameters:
-    """Hyperparameters for the policy network.
+    """Hyperparameters for the Deep Q Network.
     
     Q: How do hyperparameters differ from the model parameters?
     A: If you have to specify a paramter manually, then it is probably a 
@@ -64,8 +62,8 @@ class NNHyperParameters:
         assert (dropout_pct >= 0) and (dropout_pct <= 1), (
             f"'dropout_pct' must be between 0 and 1, not {dropout_pct}")
 
-class VPGPolicyNN(nn.Module):
-    """Neural network for vanilla policy gradient. Used in the first experiment
+class DQN(nn.Module):
+    """A single Deep Q-network
     
     Args:
         action_dim (int): The dimension of the action space, i.e. 
@@ -95,7 +93,7 @@ class VPGPolicyNN(nn.Module):
         self.optimizer = torch.optim.Adam(self.parameters(), lr = h_params.lr)
         self.action_dim = action_dim
 
-        self.memory = rl_memory.memory.Memory()
+        self.loss_fn = nn.MSELoss()
 
     def forward(self, x: Tensor):
         x: Tensor = x.float()
@@ -110,45 +108,107 @@ class VPGPolicyNN(nn.Module):
             nn.BatchNorm2d(num_filters),
             nn.LeakyReLU(),
             nn.MaxPool2d(kernel_size=filter_size, stride=1),) 
+    
+    def predict(self, x: Tensor, train: bool):
+        self.eval()
+        if train:
+            self.train()
+        return self.forward(x)
 
-    def action_distribution(self, state) -> Categorical:
+class DoubleDQN(pl.LightningModule):
+    """Double Q-Learning 
+    
+    https://paperswithcode.com/method/double-dqn
+
+    Args: 
+        dqn_greedy (DQN): The target network used to estimate state values (Q-values)
+        dqn_prime (DQN): Second network, θ', that has its weights replaced by 
+            those of the target network, θ 'dqn_greegy', for the evaluation of
+            the current greedy policy.     
+    """
+
+    def __init__(self, dqn_greedy: DQN, dqn_prime: DQN):
+        self.dqn_greedy = dqn_greedy
+        self.dqn_prime = dqn_prime
+
+        self.dqn_greedy_update_idx: int = 0 
+        self.dqn_prime_update_idx: int = 0 
+
+    def train_from_buffer_sample(self):
+        # self.sample_replay_buffer()
+        targets = self.compute_targets()
+        # self.update_dqn_greedy()
+
+    def update_dqn_prime(self):
+        """'dqn_prime' is on a slower update time with a different schedule"""
+
+        self.dqn_prime_update_idx += 1
+
+    def update_dqn_greedy(self):
+        self.dqn_greedy # update my weights based on (obs, action, target) paris
+        ...
+        self.dqn_greedy_update_idx += 1
+
+    def compute_targets(self, 
+                        memories: Union[memory.Memory, List[memory.Memory]], 
+                        discount_factor: float):
+        if isinstance(memories, (memory.Memory)):
+            memories = [memories]
+        assert isinstance(memories, list)
+        assert isinstance(memories[0], memory.Memory)
+
+        non_terminal_idxs: List[bool] = [
+            (m.next_obs is not None) for m in memories]
+        targets = torch.zeros(size=(num_memories:=len(memories)))
+
+        obs_batch, action_idx_batch, reward_batch, next_obs_batch = [
+            torch.Tensor(_tuple) for _tuple in zip(*memories)]
+        
+        q_vals_next_obs = torch.ones(size=num_memories) * reward_batch
+        q_vals_next_obs[non_terminal_idxs] = self.dqn_prime.predict(
+            next_obs_batch[non_terminal_idxs], train=False)
+        
+        self.update_dqn_greedy()
+            
+        # target = torch.Tensor(m.reward) + discount_factor * torch.Tensor()
+        ... # TODO
+
+    def update(self, q_vals: List[torch.Tensor], action_idxs: List[int], 
+               target_batch: List[torch.Tensor]):  # add entropy
+        """Update NN weights with [method].
+
+            obs_batch: List[rlm.Observation], 
+            action_idxs: List[int], 
+            target_batch: torch.Tensor
         """
-        Args:
-            state: TODO
+        target_batch = torch.FloatTensor(target_batch)
+        assert not target_batch.requires_grad
+        assert all([q_vals.requires_grad for q_val in q_vals])
 
-        input: state (TODO adjust for when state is sequence of observations??)
-        ouput: softmax(nn valuation of each action)
-
-        Returns: 
-            action_distribution (Categorical): 
-        """
-        state_rgb: Tensor = it.grid_to_rgb(state).unsqueeze(0)
-        action_logits = self.forward(state_rgb)
-        action_probs: Tensor = F.softmax(input = action_logits, dim=-1)
-        action_distribution: Categorical = torch.distributions.Categorical(
-            probs = action_probs)
-        return action_distribution
-
-    def update(self, log_probs, advantages):  # add entropy
-        """Update with advantage policy gradient theorem."""
-        advantages = torch.FloatTensor(advantages)
-        log_probs = torch.cat(tensors = log_probs, dim = 0)
-        assert log_probs.requires_grad
-        assert not advantages.requires_grad
-
-        loss = - torch.mean(log_probs * advantages.detach())
+        self.train()
+        loss = self.loss_fn(q_vals, target_batch.detach())
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-class VPGSceneTracker(trackers.SceneTracker):
+    # def update(self, log_probs, advantages):  # add entropy
+    #     """Update with advantage policy gradient theorem."""
+    #     advantages = torch.FloatTensor(advantages)
+    #     log_probs = torch.cat(tensors = log_probs, dim = 0)
+    #     assert log_probs.requires_grad
+    #     assert not advantages.requires_grad
+    #
+    #     loss = - torch.mean(log_probs * advantages.detach())
+    #     self.optimizer.zero_grad()
+    #     loss.backward()
+    #     self.optimizer.step()
+
+class DQNSceneTracker(trackers.SceneTracker): # TODO
     """Container class for tracking scene-level results.
 
     Attributes:
         scene_rewards (List[float]): Scene rewards. Defaults to empty list.
         scene_disc_rewards (Array): Scene discounted rewards. Defaults to None.
-        log_probs (List[float]): Scene log probabilities for the action chosen 
-            by the agent. Defaults to empty list.
         env_char_renders (List[Array]): Character renders of the env grid. 
             Used for visualizing how the agent moves.
     """
@@ -156,11 +216,11 @@ class VPGSceneTracker(trackers.SceneTracker):
     def __init__(self):
         self.scene_rewards: List[float] = []
         self.scene_disc_rewards: Array = None
-        self.log_probs: List[float] = []
+        self.action_idxs: List[int] = []
         self.env_char_renders: List[Array] = [] 
         super().__post_init__()
 
-class VPGEpisodeTracker(trackers.EpisodeTracker):
+class DQNEpisodeTracker(trackers.EpisodeTracker): # TODO
     """Container class for tracking episode-level results.
 
     Attributes:
@@ -182,7 +242,7 @@ class VPGEpisodeTracker(trackers.EpisodeTracker):
         self.distributions: List[Categorical] = []
         super().__post_init__()
 
-class VPGTransferLearning(base.TransferLearningManagement):
+class DQNTransferLearning(base.TransferLearningManagement): # TODO
     """Manages the transfer learning process for Vanilla Policy Gradient."""
 
     def __init__(self, transfer_freq: int):
@@ -200,11 +260,12 @@ class VPGTransferLearning(base.TransferLearningManagement):
             env.reset() # Reset to the same environment
         return env
 
-class VPGAlgo(base.RLAlgorithm):
+class DQNAlgo(base.RLAlgorithm): # TODO Write the DQN class and change this algo
+                                 # to work with the network
     """Runs the Vanilla Policy Gradient algorithm.
 
     Args:
-        policy_nn (VPGPolicyNN): 
+        dqn (DQN): 
         env_like (rlm.Env): 
         transfer_mgmt (Optional[base.TransferLearningManagement]): 
             Defaults to None.
@@ -214,7 +275,7 @@ class VPGAlgo(base.RLAlgorithm):
         episode_tracker (trackers.EpisodeTracker): 
         scene_tracker (trackers.SceneTracker):
 
-        policy_nn (VPGPolicyNN): 
+        dqn (DQN): 
         env_like (rlm.Env): 
         transfer_mgmt (Optional[base.TransferLearningManagement]): 
             Defaults to None.
@@ -223,19 +284,19 @@ class VPGAlgo(base.RLAlgorithm):
 
     def __init__(
         self, 
-        policy_nn: VPGPolicyNN, 
+        dqn: DQN, 
         env_like: rlm.Env, 
         transfer_mgmt: Optional[base.TransferLearningManagement] = None,
         discount_factor: float = 0.99
         ):
             
-        self.policy_nn = policy_nn
+        self.dqn = dqn
         self.env_like = env_like
         self.transfer_mgmt: base.TransferLearningManagement = transfer_mgmt
         self.discount_factor = discount_factor
 
-        self.episode_tracker = VPGEpisodeTracker()
-        self.scene_tracker: VPGSceneTracker
+        self.episode_tracker = DQNEpisodeTracker()
+        self.scene_tracker: DQNSceneTracker
 
     def run_algo(
             self, 
@@ -245,9 +306,9 @@ class VPGAlgo(base.RLAlgorithm):
         """TODO: docs"""
         train_val: str = "train" if training else "val"
         if train_val == "train":
-            self.policy_nn.train()
+            self.dqn.train()
         else:
-            self.policy_nn.eval()
+            self.dqn.eval()
 
         env: rlm.Env = self.env_like
         for episode_idx in range(num_episodes):
@@ -256,7 +317,7 @@ class VPGAlgo(base.RLAlgorithm):
             self.film_episode(env = env, 
                               max_num_scenes = max_num_scenes) 
             if train_val == "train":
-                self.update_policy_nn()
+                self.update_q_network()
             self.on_episode_end()
 
     def on_episode_start(
@@ -268,31 +329,31 @@ class VPGAlgo(base.RLAlgorithm):
                 ep_idx = episode_idx, env = env)
         else:
             env.reset()
-        self.scene_tracker = VPGSceneTracker()
+        self.scene_tracker = DQNSceneTracker()
         return env
 
     def film_scene(self, env: rlm.Env) -> bool:
         """Runs a scene. A scene is one step of an episode.
 
         Args:
-            scene_tracker (VPGSceneTracker): Stores scene-level results.
+            scene_tracker (DQNSceneTracker): Stores scene-level results.
 
         Returns:
             done (bool): Whether or not the episode is finished.
         """
         # Observe environment
         obs: rlm.Observation = environment.Observation(env = env)
-        action_distribution: Categorical = (
-            self.policy_nn.action_distribution(obs))
-        action_idx: int = action_distribution.sample()
-
+        q_vals = self.dqn(obs)
+        _, action_idx = torch.max(q_vals, dim=1) 
+        # best_action, best_action_idx
+        
         # Perform action
         env_step: rlm.EnvStep = env.step(
             action_idx = action_idx, obs = obs)
         next_obs, reward, done, info = env_step
         
-        self.scene_tracker.log_probs.append(action_distribution.log_prob(
-            action_idx).unsqueeze(0))
+        # TODO update scene tracker variables 
+        self.scene_tracker.action_idxs.append(action_idx)
         self.scene_tracker.scene_rewards.append(reward)
         self.scene_tracker.env_char_renders.append(env.render_as_char(env.grid))
         return done
@@ -313,7 +374,7 @@ class VPGAlgo(base.RLAlgorithm):
 
         Args:
             env (Env): [description]
-            scene_tracker (VPGSceneTracker): [description]
+            scene_tracker (DQNSceneTracker): [description]
         """
         scene_idx = 0
         done: bool = False
@@ -332,7 +393,7 @@ class VPGAlgo(base.RLAlgorithm):
             else:
                 continue
 
-    def update_policy_nn(self):
+    def update_q_network(self):
         """Updates the weights and biases of the policy network."""
         scene_disc_rewards: Array = rl_memory.tools.discount_rewards(
             rewards = self.scene_tracker.scene_rewards, 
@@ -341,9 +402,9 @@ class VPGAlgo(base.RLAlgorithm):
         baselines = np.zeros(scene_disc_rewards.shape)
         advantages = scene_disc_rewards - baselines
 
-        self.policy_nn.update(
-            log_probs = self.scene_tracker.log_probs, 
-            advantages = advantages)
+        self.dqn.update(
+            action_idxs=self.scene_tracker.action_idxs, 
+            advantages=advantages)
 
     def on_episode_end(self):
         """Stores episode results and any other actions at episode end.
