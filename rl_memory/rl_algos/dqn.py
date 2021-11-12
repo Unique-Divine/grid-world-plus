@@ -115,7 +115,7 @@ class DQN(nn.Module):
             self.train()
         return self.forward(x)
 
-class DDQN(pl.LightningModule):
+class DoubleDQN(pl.LightningModule):
     """Double Q-Learning 
     
     https://paperswithcode.com/method/double-dqn

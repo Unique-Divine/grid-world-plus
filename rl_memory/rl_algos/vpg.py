@@ -6,11 +6,6 @@ import torch.optim
 import numpy as np
 import dataclasses
 import os, sys 
-try:
-    import rl_memory
-except:
-    exec(open('__init__.py').read()) 
-    import rl_memory
 import rl_memory as rlm
 import rl_memory.memory
 import rl_memory.tools
