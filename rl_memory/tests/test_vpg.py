@@ -11,7 +11,7 @@ import pytest
 import warnings; warnings.filterwarnings("ignore")
 
 from rl_memory.rlm_env import environment
-from rl_memory.rl_algos import vpg
+from rl_memory.rl_algos import vpg_algo
 from rl_memory.experiments import vpg_experiments
 
 import numpy as np
@@ -35,12 +35,12 @@ class TestVPGInits:
         return env
     
     def default_experiment_setup(self) \
-                                -> Tuple[rlm.Env, vpg.VPGPolicyNN]:
+                                -> Tuple[rlm.Env, vpg_algo.VPGPolicyNN]:
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(env = env)
         obs_size = obs.size()
-        network_h_params = vpg.NNHyperParameters(lr = 1e-3)
-        policy_nn = vpg.VPGPolicyNN(
+        network_h_params = vpg_algo.NNHyperParameters(lr = 1e-3)
+        policy_nn = vpg_algo.VPGPolicyNN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
         return env, policy_nn
@@ -50,16 +50,16 @@ class TestVPGInits:
         raise NotImplementedError
 
     def test_init_NNHyperParameters(self):
-        network_hparams = vpg.NNHyperParameters(lr = 1e-3)
+        network_hparams = vpg_algo.NNHyperParameters(lr = 1e-3)
         assert network_hparams
     
     def test_init_VPGTransferLearning(self):
-        transfer_mgmt = vpg.VPGTransferLearning(transfer_freq = 2)
+        transfer_mgmt = vpg_algo.VPGTransferLearning(transfer_freq = 2)
         assert transfer_mgmt
     
     def test_VPGAlgo(self):
         env, policy_nn = self.default_experiment_setup()
-        rl_algo = vpg.VPGAlgo(
+        rl_algo = vpg_algo.VPGAlgo(
             policy_nn = policy_nn, 
             env_like = env,)
         rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
@@ -69,10 +69,10 @@ class TestVPGInits:
         
         transfer_freqs: List[int] = [1, 2, 3]
         for transfer_freq in transfer_freqs:
-            rl_algo = vpg.VPGAlgo(
+            rl_algo = vpg_algo.VPGAlgo(
                 policy_nn = policy_nn, 
                 env_like = env, 
-                transfer_mgmt = vpg.VPGTransferLearning(
+                transfer_mgmt = vpg_algo.VPGTransferLearning(
                     transfer_freq = transfer_freq))
             rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
 
@@ -86,13 +86,13 @@ class TestPretrainingExperiment:
         return env
 
     def default_experiment_setup(self) \
-                                -> Tuple[rlm.Env, vpg.VPGPolicyNN]:
+                                -> Tuple[rlm.Env, vpg_algo.VPGPolicyNN]:
         env: rlm.Env = self.init_env()
         obs: rlm.Observation = environment.Observation(
             env = env)
         obs_size = obs.size()
-        network_h_params = vpg.NNHyperParameters(lr = 1e-3)
-        policy_nn = vpg.VPGPolicyNN(
+        network_h_params = vpg_algo.NNHyperParameters(lr = 1e-3)
+        policy_nn = vpg_algo.VPGPolicyNN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
         return env, policy_nn
@@ -148,7 +148,7 @@ class TestEvaluateVPG:
         env = environment.Env()
         env.reset()
         experiment = vpg_experiments.VPGEvalExperiment()
-        train_algo: vpg.VPGAlgo = experiment.train(env = env, num_episodes = 1)
+        train_algo: vpg_algo.VPGAlgo = experiment.train(env = env, num_episodes = 1)
         experiment.test(rl_algo = train_algo, env = env, num_episodes = 1)
 
     def test_plot_results(self):

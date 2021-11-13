@@ -10,7 +10,7 @@ except:
 import rl_memory as rlm
 import rl_memory.tools
 from rl_memory.rlm_env import environment
-from rl_memory.rl_algos import vpg
+from rl_memory.rl_algos import vpg_algo
 
 from typing import Optional, Tuple, Dict, List
 
@@ -19,7 +19,7 @@ class PretrainingExperiment:
     
     Args:
         env (Env): 
-        episode_tracker (vpg.VPGEpisodeTracker):
+        episode_tracker (vpg_algo.VPGEpisodeTracker):
         num_episodes (int): Number of episodes to evaluate the agent. Defaults 
             to 10000.
         discount_factor (float): Factor used to discount rewards. 
@@ -30,7 +30,7 @@ class PretrainingExperiment:
             Denoted α (alpha) in the RL literature. Defaults to 1e-3.
     
     Attributes:
-        episode_tracker (vpg.VPGEpisodeTracker):
+        episode_tracker (vpg_algo.VPGEpisodeTracker):
         num_episodes (int): Number of episodes to evaluate the agent. Defaults 
             to 10000.
         discount_factor (float): Factor used to discount rewards. A.K.A. gamma
@@ -43,7 +43,7 @@ class PretrainingExperiment:
     def __init__(
         self, 
         env: rlm.Env, 
-        episode_tracker: vpg.VPGEpisodeTracker = vpg.VPGEpisodeTracker(), 
+        episode_tracker: vpg_algo.VPGEpisodeTracker = vpg_algo.VPGEpisodeTracker(), 
         num_episodes: int = 10000, 
         discount_factor: float = 0.99, 
         transfer_freq: int = 10, 
@@ -66,11 +66,11 @@ class PretrainingExperiment:
     def create_policy_nn(
             self, 
             env: rlm.Env, 
-            obs: rlm.Observation) -> vpg.VPGPolicyNN:
+            obs: rlm.Observation) -> vpg_algo.VPGPolicyNN:
         action_dim: int = len(env.action_space)
         obs_size: torch.Size = obs.size()
-        nn_hparams = vpg.NNHyperParameters(lr = self.lr)
-        policy_nn = vpg.VPGPolicyNN(
+        nn_hparams = vpg_algo.NNHyperParameters(lr = self.lr)
+        policy_nn = vpg_algo.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
         return policy_nn
@@ -88,12 +88,12 @@ class PretrainingExperiment:
 
     def pretrain_on_easy_env(
             self, 
-            policy_nn: vpg.VPGPolicyNN):
+            policy_nn: vpg_algo.VPGPolicyNN):
         """TODO docstring
         Methods come from RLAlgorithm
         """
         easy_env = self.easy_env()
-        rl_algo = vpg.VPGAlgo(
+        rl_algo = vpg_algo.VPGAlgo(
             policy_nn = policy_nn,
             env_like = easy_env,)
         rl_algo.run_algo(
@@ -104,19 +104,19 @@ class PretrainingExperiment:
 
     def pretrain_to_threshold(
         self, 
-        policy_nn: vpg.VPGPolicyNN, 
+        policy_nn: vpg_algo.VPGPolicyNN, 
         ep_len_threshold: float = 3.3, 
-        trajectory_lookback_window: int = 500) -> vpg.VPGPolicyNN:
+        trajectory_lookback_window: int = 500) -> vpg_algo.VPGPolicyNN:
         """Recursively trains the agent (policy network) on an easy environment
         until it can solve it quickly and consistently.
 
         Args:
-            policy_nn (vpg.VPGPolicyNN): The network that receives pre-training. 
+            policy_nn (vpg_algo.VPGPolicyNN): The network that receives pre-training. 
             ep_len_threshold (float): Defaults to 3.3.
             trajectory_lookback_window (int): Defaults to 500.
         
         Returns
-            policy_nn (vpg.VPGPolicyNN): Pre-trained network.
+            policy_nn (vpg_algo.VPGPolicyNN): Pre-trained network.
         """
 
         avg_episode_len = np.infty
@@ -132,7 +132,7 @@ class PretrainingExperiment:
 
     def experiment_vpg_transfer(
             self, 
-            policy_nn: Optional[vpg.VPGPolicyNN] = None) -> vpg.VPGPolicyNN:
+            policy_nn: Optional[vpg_algo.VPGPolicyNN] = None) -> vpg_algo.VPGPolicyNN:
         """Runs an experiment to see if the environment is solvable with VPG 
         and pre-training on the easy environment. 
 
@@ -149,7 +149,7 @@ class PretrainingExperiment:
         self.env.create_new()
         obs: rlm.Observation = environment.Observation(env = self.env)
         if not policy_nn:
-            policy_nn: vpg.VPGPolicyNN = self.create_policy_nn(
+            policy_nn: vpg_algo.VPGPolicyNN = self.create_policy_nn(
                 env = self.env, obs = obs)
 
         # Step 1: Pretrain on the easy environment
@@ -157,7 +157,7 @@ class PretrainingExperiment:
             policy_nn = policy_nn)
 
         # Step 2: Transfer learn on the big environment.
-        rl_algo = vpg.VPGAlgo(
+        rl_algo = vpg_algo.VPGAlgo(
             policy_nn = policy_nn, 
             env = self.env,)
         rl_algo.run_algo(
@@ -190,15 +190,15 @@ class VPGEvalExperiment:
         obs: rlm.Observation = environment.Observation(env = env)
         obs_size: torch.Size = obs.size()
         action_dim: int = len(env.action_space)
-        nn_hparams = vpg.NNHyperParameters(lr = lr)
-        policy_nn = vpg.VPGPolicyNN(
+        nn_hparams = vpg_algo.NNHyperParameters(lr = lr)
+        policy_nn = vpg_algo.VPGPolicyNN(
             obs_size = obs_size, action_dim = action_dim, 
             h_params = nn_hparams)
-        transfer_mgmt_train = vpg.VPGTransferLearning(
+        transfer_mgmt_train = vpg_algo.VPGTransferLearning(
             transfer_freq = transfer_freq)
 
         # Run RL algorithm
-        training_algo = vpg.VPGAlgo(policy_nn = policy_nn, 
+        training_algo = vpg_algo.VPGAlgo(policy_nn = policy_nn, 
                                     env_like = env, 
                                     transfer_mgmt = transfer_mgmt_train, 
                                     discount_factor = discount_factor)
@@ -209,9 +209,9 @@ class VPGEvalExperiment:
         return training_algo
 
     def test(self, 
-             rl_algo: vpg.VPGAlgo, 
+             rl_algo: vpg_algo.VPGAlgo, 
              env: rlm.Env, 
-             num_episodes: int = 10) -> vpg.VPGAlgo:
+             num_episodes: int = 10) -> vpg_algo.VPGAlgo:
         """[summary]
         TODO: 
             docs
@@ -223,7 +223,7 @@ class VPGEvalExperiment:
             num_episodes (int, optional): [description]. Defaults to 10.
 
         Returns:
-            rl_algo (vpg.VPGAlgo): [description]
+            rl_algo (vpg_algo.VPGAlgo): [description]
         """
 
         max_num_scenes: int = env.grid.shape[0] * env.grid.shape[1]
@@ -247,7 +247,7 @@ class VPGEvalExperiment:
             grid_shape = (10, 10), n_goals = 1, hole_pct = 0.4)
         train_env.create_new()
 
-        train_algo: vpg.VPGAlgo = self.train(
+        train_algo: vpg_algo.VPGAlgo = self.train(
             env = train_env, num_episodes = n_episodes_train)
         self.plot_results(rl_algo = train_algo, dataset = "train")
 
@@ -255,13 +255,13 @@ class VPGEvalExperiment:
             grid_shape = train_env.grid.shape, 
             n_goals = train_env.n_goals, 
             hole_pct = train_env.hole_pct)
-        test_algo: vpg.VPGAlgo = self.test(
+        test_algo: vpg_algo.VPGAlgo = self.test(
             rl_algo = train_algo,
             env = test_env, 
             num_episodes = n_episodes_test)
         self.plot_results(rl_algo = test_algo, dataset = "test")
     
-    def plot_results(self, rl_algo: vpg.VPGAlgo, dataset: str = "train"):
+    def plot_results(self, rl_algo: vpg_algo.VPGAlgo, dataset: str = "train"):
         """Plots rewards"""
         assert dataset in ["train", "test"]
         episode_trajectories = rl_algo.episode_tracker.trajectories
