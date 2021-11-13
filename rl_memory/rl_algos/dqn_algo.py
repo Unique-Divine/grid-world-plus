@@ -8,7 +8,8 @@ import dataclasses
 import os, sys 
 import rl_memory as rlm
 import rl_memory.tools
-from rl_memory.rlm_env import environment, representations, memory
+from rl_memory import replay
+from rl_memory.rlm_env import environment, representations
 from rl_memory.rl_algos import base, trackers
 import pytorch_lightning as pl
 
@@ -150,12 +151,12 @@ class DoubleDQN(pl.LightningModule):
         self.dqn_greedy_update_idx += 1
 
     def compute_targets(self, 
-                        memories: Union[memory.Memory, List[memory.Memory]], 
+                        memories: Union[replay.Memory, List[replay.Memory]], 
                         discount_factor: float):
-        if isinstance(memories, (memory.Memory)):
+        if isinstance(memories, (replay.Memory)):
             memories = [memories]
         assert isinstance(memories, list)
-        assert isinstance(memories[0], memory.Memory)
+        assert isinstance(memories[0], replay.Memory)
 
         non_terminal_idxs: List[bool] = [
             (m.next_obs is not None) for m in memories]
@@ -243,7 +244,7 @@ class DQNEpisodeTracker(trackers.EpisodeTracker): # TODO
         super().__post_init__()
 
 class DQNTransferLearning(base.TransferLearningManagement): # TODO
-    """Manages the transfer learning process for Vanilla Policy Gradient."""
+    """Manages the transfer learning process for DQNAlgo."""
 
     def __init__(self, transfer_freq: int):
         self.transfer_freq = transfer_freq
@@ -275,7 +276,7 @@ class DQNAlgo(base.RLAlgorithm): # TODO Write the DQN class and change this algo
         episode_tracker (trackers.EpisodeTracker): 
         scene_tracker (trackers.SceneTracker):
 
-        dqn (DQN): 
+        dqn (DQN): Deep Q-Network (nn.Module). 
         env_like (rlm.Env): 
         transfer_mgmt (Optional[base.TransferLearningManagement]): 
             Defaults to None.
