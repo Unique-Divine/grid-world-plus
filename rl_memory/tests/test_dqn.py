@@ -13,7 +13,7 @@ import warnings; warnings.filterwarnings("ignore")
 from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import dqn
 # TODO
-# from rl_memory.experiments import dqn_experiments 
+from rl_memory.experiments import dqn_experiments 
 
 import numpy as np
 import rl_memory as rlm
@@ -41,10 +41,10 @@ class TestDQNInits:
         obs: rlm.Observation = environment.Observation(env = env)
         obs_size = obs.size()
         network_h_params = dqn.NNHyperParameters(lr = 1e-3)
-        dqn_nn = dqn.DQN(
+        dq_nn = dqn.DQN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
-        return env, dqn_nn
+        return env, dq_nn
 
     """
     def test_placeholder(self):
@@ -61,19 +61,19 @@ class TestDQNInits:
         assert transfer_mgmt
     
     def test_DQNAlgo(self):
-        env, dqn_nn = self.default_experiment_setup()
+        env, dq_nn = self.default_experiment_setup()
         rl_algo = dqn.DQNAlgo(
-            dqn=dqn_nn, 
+            dqn=dq_nn, 
             env_like = env,)
         rl_algo.run_algo(num_episodes = 5, max_num_scenes = 3)
 
     def test_DQNAlgo_w_transfer(self):
-        env, dqn_nn = self.default_experiment_setup()
+        env, dq_nn = self.default_experiment_setup()
         
         transfer_freqs: List[int] = [1, 2, 3]
         for transfer_freq in transfer_freqs:
             rl_algo = dqn.DQNAlgo(
-                dqn=dqn_nn, 
+                dqn=dq_nn, 
                 env_like = env, 
                 transfer_mgmt = dqn.DQNTransferLearning(
                     transfer_freq = transfer_freq))
@@ -94,21 +94,21 @@ class TestPretrainingExperiment:
         obs: rlm.Observation = environment.Observation(
             env = env)
         obs_size = obs.size()
-        network_h_params = vpg.NNHyperParameters(lr = 1e-3)
-        dqn_nn = dqn.DQN(
+        network_h_params = dqn.NNHyperParameters(lr = 1e-3)
+        dq_nn = dqn.DQN(
             obs_size = obs_size, action_dim = len(env.action_space), 
             h_params = network_h_params)
-        return env, dqn_nn
+        return env, dq_nn
 
     def test_init_PretrainingExperiment(self):
-        env, dqn_nn = self.default_experiment_setup()
+        env, dq_nn = self.default_experiment_setup()
         experiment = dqn_experiments.PretrainingExperiment(
             env = env, 
             num_episodes = 3, transfer_freq = 1 )
         assert experiment
 
     def test_easy_env(self):
-        env, dqn_nn = self.default_experiment_setup()
+        env, dq_nn = self.default_experiment_setup()
         experiment = dqn_experiments.PretrainingExperiment(
             env = env, 
             num_episodes = 3, transfer_freq = 1 )
@@ -116,20 +116,20 @@ class TestPretrainingExperiment:
         assert isinstance(easy_env, environment.Env)
 
     def test_pretrain_on_easy_env(self):
-        env, dqn_nn = self.default_experiment_setup()
+        env, dq_nn = self.default_experiment_setup()
         experiment = dqn_experiments.PretrainingExperiment(
             env = env, 
             num_episodes = 3, transfer_freq = 1 )
-        experiment.pretrain_on_easy_env(dqn = dqn_nn)
+        experiment.pretrain_on_easy_env(dqn = dq_nn)
 
     def test_pretrain_to_threshold(self):
-        env, dqn_nn = self.default_experiment_setup()
+        env, dq_nn = self.default_experiment_setup()
         experiment = dqn_experiments.PretrainingExperiment(
             env = env, 
             num_episodes = 100, transfer_freq = 1 )
-        dqn_nn = experiment.pretrain_to_threshold(
-            dqn = dqn_nn)
-        return dqn_nn
+        dq_nn = experiment.pretrain_to_threshold(
+            dqn = dq_nn)
+        return dq_nn
         
     def test_experiment_vpg_transfer(self):
         return 'yuh' # TODO
