@@ -1,23 +1,26 @@
-import os, sys
-try:
-    import rl_memory
-except:
-    exec(open('__init__.py').read()) 
-    import rl_memory
-import rl_memory as rlm
+#!/usr/bin/env python3
+"""Test module for the Vanilla Policy Gradient (VPG) reinforcement learning 
+algorithm. See module `rl_memory.rl_algos.vpq`.
+"""
+
+import os
+import sys
+import torch
+import random
+import pytest
+import warnings; warnings.filterwarnings("ignore")
+
 from rl_memory.rlm_env import environment
 from rl_memory.rl_algos import vpg
 from rl_memory.experiments import vpg_experiments
+
 import numpy as np
-import torch
-import random
-import warnings; warnings.filterwarnings("ignore")
-# Type imports
+import rl_memory as rlm
 from typing import List, Tuple, Optional
 from torch import Tensor
+
 Array = np.ndarray
 
-import pytest
 
 class TestVPGInits:
     """Verifies that all of the abstract classes and concrete classes of 
