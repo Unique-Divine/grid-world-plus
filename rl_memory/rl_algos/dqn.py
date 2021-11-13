@@ -244,7 +244,7 @@ class DQNEpisodeTracker(trackers.EpisodeTracker): # TODO
         super().__post_init__()
 
 class DQNTransferLearning(base.TransferLearningManagement): # TODO
-    """Manages the transfer learning process for Vanilla Policy Gradient."""
+    """Manages the transfer learning process for DQNAlgo."""
 
     def __init__(self, transfer_freq: int):
         self.transfer_freq = transfer_freq
@@ -276,7 +276,7 @@ class DQNAlgo(base.RLAlgorithm): # TODO Write the DQN class and change this algo
         episode_tracker (trackers.EpisodeTracker): 
         scene_tracker (trackers.SceneTracker):
 
-        dqn (DQN): 
+        dqn (DQN): Deep Q-Network (nn.Module). 
         env_like (rlm.Env): 
         transfer_mgmt (Optional[base.TransferLearningManagement]): 
             Defaults to None.
