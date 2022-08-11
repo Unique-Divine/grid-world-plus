@@ -12,10 +12,8 @@ def discounted_reward(r, gamma):
     return list(discounted_r)
 
 
-def plot_episode_rewards(values, title=''):
+def plot_episode_rewards(values, title='', show: bool = False):
     """ Plot the reward curve and histogram of results over time."""
-    # Update the window after each episode
-    clear_output(wait=True)
 
     # Define the figure
     f, ax = plt.subplots(nrows=1, ncols=2, figsize=(12,5))
@@ -40,4 +38,5 @@ def plot_episode_rewards(values, title=''):
     ax[1].set_xlabel('Scores per Last 50 Episodes')
     ax[1].set_ylabel('Frequency')
     ax[1].legend()
-    plt.show()
+    if show:
+        plt.show()

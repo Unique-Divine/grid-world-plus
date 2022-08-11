@@ -67,7 +67,8 @@ def epsilon(episode_idx: int,
     return epsilon
 
 
-def plot_episode_rewards(episode_rewards: List[float], title: str):
+def plot_episode_rewards(
+    episode_rewards: List[float], title: str, show: bool = False):
     """ Plot the reward curve and histogram of results over time.
     
     Formerly a part of rl_memory.models.a2c.tools
@@ -103,4 +104,5 @@ def plot_episode_rewards(episode_rewards: List[float], title: str):
     ax[1].set_xlabel('Scores per Last 50 Episodes')
     ax[1].set_ylabel('Frequency')
     ax[1].legend()
-    plt.show()
+    if show: 
+        plt.show()
