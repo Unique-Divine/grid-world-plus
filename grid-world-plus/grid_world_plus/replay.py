@@ -8,7 +8,7 @@ Classes:
     Trajectory: An ordered sequence of memories.
 """
 import dataclasses
-from grid_world_plus import rlm_env
+from grid_world_plus import env
 from typing import Any, Iterable, List, Optional, Tuple
 
 @dataclasses.dataclass
@@ -21,13 +21,13 @@ class Memory:
         reward (float)
         next_obs (Optional[Observation]): Defaults to None.
     """
-    obs: rlm_env.Observation
+    obs: env.Observation
     action_idx: int
     reward: float
-    next_obs: Optional[rlm_env.Observation] = None
+    next_obs: Optional[env.Observation] = None
 
     def __iter__(self) -> Iterable[Tuple[
-            rlm_env.Observation, int, float, rlm_env.Observation]]:
+            env.Observation, int, float, env.Observation]]:
         return iter([self.obs, self.action_idx, self.reward, self.next_obs])
     
     @property
@@ -44,10 +44,10 @@ class Trajectory:
 
     Attributes:
         memories (List[Memory]): Memories that make up the trajectory.
-        obs_seq (List[rlm_env.Observation]): Observations.
+        obs_seq (List[env.Observation]): Observations.
         action_idxs (List[int]): Action indices that map to actions.
         rewards (List[float]): Reward for each memory.
-        next_obs_seq (List[Optional[rlm_env.Observation]]): The resultant 'next_obs'
+        next_obs_seq (List[Optional[env.Observation]]): The resultant 'next_obs'
             after corresponding to each obs, action_idx, and reward. 
     """
 
@@ -64,11 +64,11 @@ class Trajectory:
         return [memory.action_idx for memory in self.memories]
 
     @property
-    def obs_seq(self) -> List[rlm_env.Observation]: 
+    def obs_seq(self) -> List[env.Observation]: 
         return [memory.obs for memory in self.memories]
 
     @property
-    def next_obs_seq(self) -> List[Optional[rlm_env.Observation]]: 
+    def next_obs_seq(self) -> List[Optional[env.Observation]]: 
         return [memory.next_obs for memory in self.memories]
 
     def __len__(self) -> int:

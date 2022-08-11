@@ -505,8 +505,8 @@ class Env:
                           hole_pct = self.hole_pct,
                           n_goals = self.n_goals)
             assert np.all(new_env.env_start == self.empty_grid)
-            any_holes: bool = lambda grid: np.any(
-                grid == self.interactables['hole'])
+            # any_holes: bool = lambda grid: np.any(
+            #     grid == self.interactables['hole'])
             # assert any_holes(new_env.grid) == False, (
             #     "The 'new_env' should start out frozen after initialization.")
             

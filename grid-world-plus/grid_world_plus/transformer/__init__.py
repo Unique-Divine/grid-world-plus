@@ -16,8 +16,8 @@ access_root_dir()
 import grid_world_plus
 import warnings; warnings.filterwarnings("ignore")
 
-# from grid_world_plus.rlm_env.agents import Agent
-# from grid_world_plus.rlm_env.environment import (
+# from grid_world_plus.env.agents import Agent
+# from grid_world_plus.env.environment import (
 #     Point, Env, PathMaker, Observation, State)
 
 # __all__ = [

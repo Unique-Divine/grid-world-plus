@@ -14,11 +14,11 @@ def access_root_dir(depth = 1):
 
 access_root_dir(depth = 0)
 
-from grid_world_plus.rlm_env import environment
+from grid_world_plus import env
 from grid_world_plus import replay
 
-Env = environment.Env
-Observation = environment.Observation
-EnvStep = environment.EnvStep
+Env = env.Env
+Observation = env.Observation
+EnvStep = env.EnvStep
 Memory = replay.Memory
 Experience = replay.Experience

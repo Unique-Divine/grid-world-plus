@@ -22,7 +22,7 @@ import grid_world_plus
 import warnings
 warnings.filterwarnings("ignore")
 
-from grid_world_plus.rlm_env import environment
+from grid_world_plus.env import environment
 Env = environment.Env
 EnvStep = environment.EnvStep
 Observation = environment.Observation
