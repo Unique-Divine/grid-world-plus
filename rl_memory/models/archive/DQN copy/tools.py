@@ -1,6 +1,5 @@
 import random
 from collections import deque
-from IPython.display import clear_output
 import matplotlib.pyplot as plt
 import numpy as np
 

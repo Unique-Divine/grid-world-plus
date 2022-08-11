@@ -1,7 +1,6 @@
 import random
 from collections import deque
 from typing import List, Tuple
-from IPython.display import clear_output
 import matplotlib.pyplot as plt
 import numpy as np
 

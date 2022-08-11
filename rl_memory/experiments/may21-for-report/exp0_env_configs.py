@@ -1,5 +1,4 @@
 import numpy as np
-from IPython.display import clear_output
 import matplotlib.pyplot as plt
 from typing import Iterable, List
 

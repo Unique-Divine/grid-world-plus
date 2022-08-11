@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import IPython.display
 import matplotlib.pyplot as plt
 
 from typing import Iterable, List, Optional
@@ -74,7 +73,6 @@ def plot_episode_rewards(episode_rewards: List[float], title: str):
     Formerly a part of rl_memory.models.a2c.tools
     """
     # Update the window after each episode
-    IPython.display.clear_output(wait=True)
     x = range(len(episode_rewards))
 
     # Define the figure
