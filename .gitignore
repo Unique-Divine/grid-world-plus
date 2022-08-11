@@ -268,7 +268,7 @@ TSWLatexianTemp*
 # pycharm stuff
 .DS_Store
 .idea/*
-rl_memory/.DS_Store
-rl_memory/.idea/*
+grid-world-plus/grid_world_plus/.DS_Store
+grid-world-plus/grid_world_plus/.idea/*
 
 
