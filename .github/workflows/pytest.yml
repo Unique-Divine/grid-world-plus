@@ -3,6 +3,7 @@ name: Python tests 🐍
 on: 
   pull_request:
     branches: ["main", "release/*"]
+    types: ["ready_for_review", "review_requested"]
   push: 
     branches: ["main", "release/*"]
 
@@ -16,7 +17,7 @@ jobs:
     steps:
     # ----------------------------------------------
     # check-out repo and set-up python
-    # ----------------------------------------------
+  # ----------------------------------------------
     - name: Check out the repo
       uses: actions/checkout@v3
     - name: Move to pkg grid-world-plus directory
@@ -25,7 +26,6 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: 3.9.13
-
     - name: Run python "hello, world" and move to pkg grid-world-plus directory.
       run: python --version && python -c "print('hello')"
     # ----------------------------------------------
